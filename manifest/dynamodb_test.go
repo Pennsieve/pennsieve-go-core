@@ -333,7 +333,7 @@ func testAddFiles(t *testing.T, ms *ManifestSession) {
 	manifestId := "1111"
 
 	result := ms.AddFiles(manifestId, testFileDTOs, nil)
-	assert.Equal(t, manifestFile.Local, result.FileStatus[0].Status)
+	assert.Equal(t, manifestFile.Unknown, result.FileStatus[0].Status)
 
 }
 
