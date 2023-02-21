@@ -14,6 +14,8 @@ const (
 	Processing
 	Ready
 	ProcessingFailed
+	Deleted
+	Restoring
 )
 
 func (s State) String() string {
@@ -34,6 +36,10 @@ func (s State) String() string {
 		return "READY"
 	case ProcessingFailed:
 		return "PROCESSING_FAILED"
+	case Deleted:
+		return "DELETED"
+	case Restoring:
+		return "RESTORING"
 	}
 	return "UNKNOWN"
 }
@@ -56,6 +62,10 @@ func (s State) Dict(value string) State {
 		return Ready
 	case "PROCESSING_FAILED":
 		return ProcessingFailed
+	case "DELETED":
+		return Deleted
+	case "RESTORING":
+		return Restoring
 	}
 	return Unavailable
 }
