@@ -25,7 +25,7 @@ type ManifestTable struct {
 }
 
 // CreateManifest creates a new Manifest in DynamoDB
-func CreateManifest(client core.DynamoDBAPI, manifestTableName string, item ManifestTable) error {
+func (m *ManifestTable) CreateManifest(client core.DynamoDBAPI, manifestTableName string, item ManifestTable) error {
 
 	data, err := attributevalue.MarshalMap(item)
 	if err != nil {
@@ -61,7 +61,7 @@ func CreateManifest(client core.DynamoDBAPI, manifestTableName string, item Mani
 }
 
 // GetFromManifest returns a Manifest item for a given upload ID.
-func GetFromManifest(client core.DynamoDBAPI, manifestTableName string, manifestId string) (*ManifestTable, error) {
+func (m *ManifestTable) GetFromManifest(client core.DynamoDBAPI, manifestTableName string, manifestId string) (*ManifestTable, error) {
 
 	item := ManifestTable{}
 
@@ -89,7 +89,7 @@ func GetFromManifest(client core.DynamoDBAPI, manifestTableName string, manifest
 }
 
 // GetManifestsForDataset returns all manifests for a given dataset.
-func GetManifestsForDataset(client core.DynamoDBAPI, manifestTableName string, datasetNodeId string) ([]ManifestTable, error) {
+func (m *ManifestTable) GetManifestsForDataset(client core.DynamoDBAPI, manifestTableName string, datasetNodeId string) ([]ManifestTable, error) {
 
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(manifestTableName),
@@ -120,7 +120,7 @@ func GetManifestsForDataset(client core.DynamoDBAPI, manifestTableName string, d
 }
 
 // UpdateManifestStatus updates the status of the upload in dynamodb
-func UpdateManifestStatus(client core.DynamoDBAPI, tableName string, manifestId string, status manifest.Status) error {
+func (m *ManifestTable) UpdateManifestStatus(client core.DynamoDBAPI, tableName string, manifestId string, status manifest.Status) error {
 
 	_, err := client.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
 		TableName: aws.String(tableName),

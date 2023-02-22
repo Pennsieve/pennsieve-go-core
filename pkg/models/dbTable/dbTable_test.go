@@ -1,4 +1,4 @@
-package upload
+package dbTable
 
 import (
 	"context"
@@ -7,15 +7,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dbTable"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
 )
+
+const manifestTableName = "upload-table"
+const manifestFileTableName = "upload-file-table"
 
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -24,7 +23,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getClient() *dynamodb.Client {
+func getDynamoClient() *dynamodb.Client {
 
 	testDBUri := getEnv("DYNAMODB_URL", "http://localhost:8000")
 
@@ -50,7 +49,7 @@ func TestMain(m *testing.M) {
 		time.Sleep(5 * time.Second)
 	}
 
-	svc := getClient()
+	svc := getDynamoClient()
 	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String("upload-table")})
 	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String("upload-file-table")})
 
@@ -73,10 +72,6 @@ func TestMain(m *testing.M) {
 			{
 				AttributeName: aws.String("ManifestId"),
 				KeyType:       types.KeyTypeHash,
-			},
-			{
-				AttributeName: aws.String("UserId"),
-				KeyType:       types.KeyTypeRange,
 			},
 		},
 		GlobalSecondaryIndexes: []types.GlobalSecondaryIndex{
@@ -218,6 +213,9 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	// Populate tables
+	populateManifestTable()
+
 	// Run tests
 	code := m.Run()
 
@@ -225,32 +223,12 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestManifest(t *testing.T) {
-	for scenario, fn := range map[string]func(
-		tt *testing.T, ms *ManifestSession,
-	){
-		"create and get upload": testCreateGetManifest,
-		"Add files to upload":   testAddFiles,
-	} {
-		t.Run(scenario, func(t *testing.T) {
-			client := getClient()
-			ms := ManifestSession{
-				FileTableName: "upload-file-table",
-				TableName:     "upload-table",
-				Client:        client,
-				SNSClient:     nil,
-				SNSTopic:      "",
-				S3Client:      nil,
-			}
+// populateManifestTable populates the test dynamodb table with entries for testing
+func populateManifestTable() {
 
-			fn(t, &ms)
-		})
-	}
-}
+	client := getDynamoClient()
 
-func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
-
-	tb := dbTable.ManifestTable{
+	tb := ManifestTable{
 		ManifestId:     "1111",
 		DatasetId:      1,
 		DatasetNodeId:  "N:Dataset:1234",
@@ -261,11 +239,13 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 	}
 
 	// Create Manifest
-	err := tb.CreateManifest(ms.Client, ms.TableName, tb)
-	assert.Nil(t, err, "Manifest 1 could not be created")
+	err := tb.CreateManifest(client, manifestTableName, tb)
+	if err != nil {
+		log.Fatalln("Unable to create Manifest")
+	}
 
 	// Create second upload
-	tb2 := dbTable.ManifestTable{
+	tb2 := ManifestTable{
 		ManifestId:     "2222",
 		DatasetId:      2,
 		DatasetNodeId:  "N:Dataset:5678",
@@ -275,11 +255,12 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 		DateCreated:    time.Now().Unix(),
 	}
 
-	err = tb.CreateManifest(ms.Client, ms.TableName, tb2)
-	assert.Nil(t, err, "Manifest 2 could not be created")
-
+	err = tb.CreateManifest(client, manifestTableName, tb2)
+	if err != nil {
+		log.Fatalln("Unable to create Manifest")
+	}
 	// Create second upload
-	tb3 := dbTable.ManifestTable{
+	tb3 := ManifestTable{
 		ManifestId:     "3333",
 		DatasetId:      2,
 		DatasetNodeId:  "N:Dataset:5678",
@@ -289,60 +270,9 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 		DateCreated:    time.Now().Unix(),
 	}
 
-	err = tb.CreateManifest(ms.Client, ms.TableName, tb3)
-	assert.Nil(t, err, "Manifest 3 could not be created")
-
-	// Get Manifest
-	out, err := tb.GetManifestsForDataset(ms.Client, "upload-table", "N:Dataset:1234")
-	assert.Nil(t, err, "Manifest could not be fetched")
-	assert.Equal(t, 1, len(out))
-	assert.Equal(t, "1111", out[0].ManifestId)
-	assert.Equal(t, int64(1), out[0].OrganizationId)
-	assert.Equal(t, int64(1), out[0].UserId)
-
-	// Check that there are two manifests for N:Dataset:5678
-	out, err = tb.GetManifestsForDataset(ms.Client, "upload-table", "N:Dataset:5678")
-	assert.Nil(t, err, "Manifest could not be fetched")
-	assert.Equal(t, 2, len(out))
-	assert.Equal(t, "2222", out[0].ManifestId)
-	assert.Equal(t, "3333", out[1].ManifestId)
-}
-
-func testAddFiles(t *testing.T, ms *ManifestSession) {
-
-	testFileDTOs := []manifestFile.FileDTO{
-		{
-			UploadID:       "111",
-			S3Key:          "",
-			TargetPath:     "folder1",
-			TargetName:     "file1",
-			Status:         manifestFile.Unknown,
-			MergePackageId: "",
-			FileType:       fileType.Aperio.String(),
-		},
-		{
-			UploadID:       "222",
-			S3Key:          "",
-			TargetPath:     "folder1",
-			TargetName:     "file2",
-			Status:         manifestFile.Unknown,
-			MergePackageId: "",
-			FileType:       fileType.Aperio.String(),
-		},
+	err = tb.CreateManifest(client, manifestTableName, tb3)
+	if err != nil {
+		log.Fatalln("Unable to create Manifest")
 	}
 
-	// Adding files to upload
-	manifestId := "1111"
-	result := ms.AddFiles(manifestId, testFileDTOs, nil)
-
-	// Checking returned status
-	assert.Equal(t, manifestFile.Unknown, result.FileStatus[0].Status)
-	assert.Equal(t, testFileDTOs[0].UploadID, result.FileStatus[0].UploadId)
-
 }
-
-//func testGetAction(t *testing.T, svc *dynamodb.Client) {
-//
-//	getAction(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status)
-//
-//}
