@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"strconv"
 )
 
 type PostgresAPI interface {
@@ -44,9 +45,16 @@ func ConnectRDS() (*sql.DB, error) {
 		panic("failed to create authentication token: " + err.Error())
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s",
+	return connect(dbHost, strconv.Itoa(dbPort), dbUser, authenticationToken, dbName, "")
+}
+
+func connect(dbHost string, dbPort string, dbUser string, authenticationToken string, dbName string, sslMode string) (*sql.DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
 		dbHost, dbPort, dbUser, authenticationToken, dbName,
 	)
+	if sslMode != "" {
+		dsn = fmt.Sprintf("%s sslmode=%s", dsn, sslMode)
+	}
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -61,22 +69,61 @@ func ConnectRDS() (*sql.DB, error) {
 	return db, err
 }
 
+func ConnectWithOrg(db *sql.DB, orgId int) error {
+
+	// Set Search Path to organization
+	_, err := db.Exec(fmt.Sprintf("SET search_path = \"%d\";", orgId))
+	if err != nil {
+		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
+		err := db.Close()
+		if err != nil {
+			return err
+		}
+		return err
+	}
+
+	return err
+}
+
 // ConnectRDSWithOrg returns a DB instance.
 // The Lambda function leverages IAM roles to gain access to the DB Proxy.
 // The function DOES set the search_path to the organization schema.
 func ConnectRDSWithOrg(orgId int) (*sql.DB, error) {
 	db, err := ConnectRDS()
-
-	// Set Search Path to organization
-	_, err = db.Exec(fmt.Sprintf("SET search_path = \"%d\";", orgId))
 	if err != nil {
-		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
-		err := db.Close()
-		if err != nil {
-			return nil, err
-		}
 		return nil, err
 	}
+	err = ConnectWithOrg(db, orgId)
+	return db, err
+}
 
+// ConnectENV returns a DB instance. Used for testing, it requires the
+// following environment variables to be set
+// - POSTGRES_HOST
+// - POSTGRES_PORT (will default to 5432 if missing)
+// - POSTGRES_USER
+// - POSTGRES_PASSWORD
+// - PENNSIEVE_DB
+// - POSTGRES_SSL_MODE (should be set to "disable" if the server is not https, left blank if it is)
+func ConnectENV() (*sql.DB, error) {
+	host := os.Getenv("POSTGRES_HOST")
+	port := os.Getenv("POSTGRES_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	user := os.Getenv("POSTGRES_USER")
+	password := os.Getenv("POSTGRES_PASSWORD")
+	dbName := os.Getenv("PENNSIEVE_DB")
+	sslMode := os.Getenv("POSTGRES_SSL_MODE")
+
+	return connect(host, port, user, password, dbName, sslMode)
+}
+
+func ConnectENVWithOrg(orgId int) (*sql.DB, error) {
+	db, err := ConnectENV()
+	if err != nil {
+		return nil, err
+	}
+	err = ConnectWithOrg(db, orgId)
 	return db, err
 }

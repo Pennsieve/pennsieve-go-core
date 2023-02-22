@@ -2,7 +2,6 @@ package dbTable
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/pennsieve/pennsieve-go-core/pkg/core"
@@ -17,33 +16,33 @@ import (
 
 // Package is a representation of a container on Pennsieve that contains one or more sourceFiles
 type Package struct {
-	Id           int64                          `json:"id"`
-	Name         string                         `json:"name"`
-	PackageType  packageType.Type               `json:"type"`
-	PackageState packageState.State             `json:"state"`
-	NodeId       string                         `json:"node_id"`
-	ParentId     sql.NullInt64                  `json:"parent_id"`
-	DatasetId    int                            `json:"dataset_id"`
-	OwnerId      int                            `json:"owner_id"`
-	Size         sql.NullInt64                  `json:"size"`
-	ImportId     sql.NullString                 `json:"import_id"`
-	Attributes   []packageInfo.PackageAttribute `json:"attributes"`
-	CreatedAt    time.Time                      `json:"created_at"`
-	UpdatedAt    time.Time                      `json:"updated_at"`
+	Id           int64                         `json:"id"`
+	Name         string                        `json:"name"`
+	PackageType  packageType.Type              `json:"type"`
+	PackageState packageState.State            `json:"state"`
+	NodeId       string                        `json:"node_id"`
+	ParentId     sql.NullInt64                 `json:"parent_id"`
+	DatasetId    int                           `json:"dataset_id"`
+	OwnerId      int                           `json:"owner_id"`
+	Size         sql.NullInt64                 `json:"size"`
+	ImportId     sql.NullString                `json:"import_id"`
+	Attributes   packageInfo.PackageAttributes `json:"attributes"`
+	CreatedAt    time.Time                     `json:"created_at"`
+	UpdatedAt    time.Time                     `json:"updated_at"`
 }
 
 // PackageParams is used as the input to create a package
 type PackageParams struct {
-	Name         string                         `json:"name"`
-	PackageType  packageType.Type               `json:"type"`
-	PackageState packageState.State             `json:"state"`
-	NodeId       string                         `json:"node_id"`
-	ParentId     int64                          `json:"parent_id"`
-	DatasetId    int                            `json:"dataset_id"`
-	OwnerId      int                            `json:"owner_id"`
-	Size         int64                          `json:"size"`
-	ImportId     sql.NullString                 `json:"import_id"`
-	Attributes   []packageInfo.PackageAttribute `json:"attributes"`
+	Name         string                        `json:"name"`
+	PackageType  packageType.Type              `json:"type"`
+	PackageState packageState.State            `json:"state"`
+	NodeId       string                        `json:"node_id"`
+	ParentId     int64                         `json:"parent_id"`
+	DatasetId    int                           `json:"dataset_id"`
+	OwnerId      int                           `json:"owner_id"`
+	Size         int64                         `json:"size"`
+	ImportId     sql.NullString                `json:"import_id"`
+	Attributes   packageInfo.PackageAttributes `json:"attributes"`
 }
 
 // PackageMap maps path to models.Package
@@ -157,13 +156,6 @@ func (p *Package) Add(db core.PostgresAPI, records []PackageParams) ([]Package, 
 			index*12+12,
 		))
 
-		attributeJson, err := json.Marshal(row.Attributes)
-		if err != nil {
-			log.Println(err)
-		} else if string(attributeJson) == "null" {
-			attributeJson = []byte("[]")
-		}
-
 		sqlParentId := sql.NullInt64{Valid: false}
 		if row.ParentId >= 0 {
 			sqlParentId = sql.NullInt64{
@@ -173,7 +165,7 @@ func (p *Package) Add(db core.PostgresAPI, records []PackageParams) ([]Package, 
 		}
 
 		vals = append(vals, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
-			row.OwnerId, row.Size, row.ImportId, string(attributeJson), currentTime, currentTime)
+			row.OwnerId, row.Size, row.ImportId, row.Attributes, currentTime, currentTime)
 	}
 
 	returnRows := "id, name, type, state, node_id, parent_id, " +
