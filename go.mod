@@ -11,7 +11,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.18.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.4
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.3
-	github.com/aws/smithy-go v1.13.5
 	github.com/google/uuid v1.3.0
 	github.com/lib/pq v1.10.7
 	github.com/sirupsen/logrus v1.9.0
@@ -34,6 +33,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.4 // indirect
+	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
