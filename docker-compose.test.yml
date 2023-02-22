@@ -44,20 +44,16 @@ services:
   dynamodb:
     image: amazon/dynamodb-local
     restart: always
-    volumes:
-      - ./test-dynamodb-data:/home/dynamodblocal/data
     ports:
       - "8000:8000"
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data/"
+    command: "-jar DynamoDBLocal.jar"
     networks:
       - core-tests
 
   dynamodb-ci:
     image: amazon/dynamodb-local
     restart: always
-    volumes:
-      - ./test-dynamodb-data:/home/dynamodblocal/data
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data/"
+    command: "-jar DynamoDBLocal.jar"
     networks:
       - core-tests
 
