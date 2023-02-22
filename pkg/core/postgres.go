@@ -48,43 +48,6 @@ func ConnectRDS() (*sql.DB, error) {
 	return connect(dbHost, strconv.Itoa(dbPort), dbUser, authenticationToken, dbName, "")
 }
 
-func connect(dbHost string, dbPort string, dbUser string, authenticationToken string, dbName string, sslMode string) (*sql.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
-		dbHost, dbPort, dbUser, authenticationToken, dbName,
-	)
-	if sslMode != "" {
-		dsn = fmt.Sprintf("%s sslmode=%s", dsn, sslMode)
-	}
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		panic(err)
-	}
-
-	err = db.Ping()
-	if err != nil {
-		panic(err)
-	}
-
-	return db, err
-}
-
-func ConnectWithOrg(db *sql.DB, orgId int) error {
-
-	// Set Search Path to organization
-	_, err := db.Exec(fmt.Sprintf("SET search_path = \"%d\";", orgId))
-	if err != nil {
-		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
-		err := db.Close()
-		if err != nil {
-			return err
-		}
-		return err
-	}
-
-	return err
-}
-
 // ConnectRDSWithOrg returns a DB instance.
 // The Lambda function leverages IAM roles to gain access to the DB Proxy.
 // The function DOES set the search_path to the organization schema.
@@ -93,7 +56,7 @@ func ConnectRDSWithOrg(orgId int) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ConnectWithOrg(db, orgId)
+	err = setOrgSearchPath(db, orgId)
 	return db, err
 }
 
@@ -124,6 +87,43 @@ func ConnectENVWithOrg(orgId int) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ConnectWithOrg(db, orgId)
+	err = setOrgSearchPath(db, orgId)
 	return db, err
+}
+
+func connect(dbHost string, dbPort string, dbUser string, authenticationToken string, dbName string, sslMode string) (*sql.DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
+		dbHost, dbPort, dbUser, authenticationToken, dbName,
+	)
+	if sslMode != "" {
+		dsn = fmt.Sprintf("%s sslmode=%s", dsn, sslMode)
+	}
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		panic(err)
+	}
+
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
+	return db, err
+}
+
+func setOrgSearchPath(db *sql.DB, orgId int) error {
+
+	// Set Search Path to organization
+	_, err := db.Exec(fmt.Sprintf("SET search_path = \"%d\";", orgId))
+	if err != nil {
+		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
+		err := db.Close()
+		if err != nil {
+			return err
+		}
+		return err
+	}
+
+	return err
 }
