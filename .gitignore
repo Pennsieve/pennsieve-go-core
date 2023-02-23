@@ -11,5 +11,8 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# Docker DynamoDB data
-test-dynamodb-data/
+# IntelliJ
+.idea/
+
+# Test data
+/test-dynamodb-data/
