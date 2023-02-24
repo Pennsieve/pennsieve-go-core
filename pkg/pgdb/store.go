@@ -6,11 +6,13 @@ import (
 	"fmt"
 )
 
+// SQLStore provides the Queries interface and a db instance.
 type SQLStore struct {
 	*Queries
 	db *sql.DB
 }
 
+// NewSQLStore returns a SQLStore object which implements the Queires
 func NewSQLStore(db *sql.DB) *SQLStore {
 	return &SQLStore{
 		db:      db,
