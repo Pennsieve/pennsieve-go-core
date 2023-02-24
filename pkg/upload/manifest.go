@@ -1,9 +1,10 @@
 package upload
 
 import (
+	"context"
 	"fmt"
 	core2 "github.com/pennsieve/pennsieve-go-core/pkg/core"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dbTable"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
@@ -12,13 +13,13 @@ import (
 
 var syncWG sync.WaitGroup
 
-const batchSize = 25 // maximum batch size for batchPut action on dynamodb
+const batchSize = 25 // maximum batch size for batchPut action on dynamoStore
 const nrWorkers = 2  // preliminary profiling shows that more workers don't improve efficiency for up to 1000 files
 
 type ManifestSession struct {
 	FileTableName string
 	TableName     string
-	Client        core2.DynamoDBAPI
+	Client        *dynamoStore.DynamoStore
 	SNSClient     core2.SnsAPI
 	SNSTopic      string
 	S3Client      core2.S3API
@@ -85,18 +86,19 @@ func (s ManifestSession) AddFiles(manifestId string, items []manifestFile.FileDT
 // createOrUpdateFile is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
 func (s ManifestSession) createOrUpdateFile(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
 
-	response := manifest.AddFilesStats{}
+	//store := dynamoStore.NewDynamoStore(s.Client)
+	ctx := context.Background()
 
-	tbl := dbTable.ManifestFileTable{}
+	response := manifest.AddFilesStats{}
 
 	// Create file slice of size "batchSize" or smaller if end of list.
 	var fileSlice []manifestFile.FileDTO = nil
 	for record := range files {
 		fileSlice = append(fileSlice, record)
 
-		// When the number of items in fileSize matches the batchSize --> make call to update dynamodb
+		// When the number of items in fileSize matches the batchSize --> make call to update dynamoStore
 		if len(fileSlice) == batchSize {
-			stats, _ := tbl.SyncFiles(s.Client, s.FileTableName, manifestId, fileSlice, forceStatus)
+			stats, _ := s.Client.SyncFiles(ctx, s.FileTableName, manifestId, fileSlice, forceStatus)
 			fileSlice = nil
 
 			response.NrFilesUpdated += stats.NrFilesUpdated
@@ -108,7 +110,7 @@ func (s ManifestSession) createOrUpdateFile(workerId int32, files fileWalk, mani
 
 	// Add final partially filled fileSlice to database
 	if fileSlice != nil {
-		stats, _ := tbl.SyncFiles(s.Client, s.FileTableName, manifestId, fileSlice, forceStatus)
+		stats, _ := s.Client.SyncFiles(ctx, s.FileTableName, manifestId, fileSlice, forceStatus)
 		response.NrFilesUpdated += stats.NrFilesUpdated
 		response.NrFilesRemoved += stats.NrFilesRemoved
 		response.FailedFiles = append(response.FailedFiles, stats.FailedFiles...)

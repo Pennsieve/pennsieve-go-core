@@ -45,6 +45,12 @@ func (store *SQLStore) ImportFiles(ctx context.Context, records []models.Package
 
 	err := store.execTx(ctx, func(q *Queries) error {
 		// TODO: add packages
+		//q.AddFiles()
+		//
+		//q.AddPackages()
+		//
+		//q.db.QueryContext()
+
 		// TODO: add files
 		return nil
 	})

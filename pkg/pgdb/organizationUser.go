@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
+	log "github.com/sirupsen/logrus"
 )
 
 func (q *Queries) GetOrganizationUserById(ctx context.Context, id int64) (*models.OrganizationUser, error) {
@@ -30,4 +32,29 @@ func (q *Queries) GetOrganizationUserById(ctx context.Context, id int64) (*model
 	default:
 		panic(err)
 	}
+}
+
+// GetOrganizationClaim returns an organization claim for a specific user.
+func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organizationId int64) (*organization.Claim, error) {
+
+	currentOrgUser, err := q.GetOrganizationUserById(ctx, userId)
+	if err != nil {
+		log.Error("Unable to check Org User: ", err)
+		return nil, err
+	}
+
+	allFeatures, err := q.GetFeatureFlags(ctx, organizationId)
+	if err != nil {
+		log.Error("Unable to check Feature Flags: ", err)
+		return nil, err
+	}
+
+	orgRole := organization.Claim{
+		Role:            currentOrgUser.DbPermission,
+		IntId:           organizationId,
+		EnabledFeatures: allFeatures,
+	}
+
+	return &orgRole, nil
+
 }

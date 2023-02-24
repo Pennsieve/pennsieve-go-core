@@ -7,7 +7,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dbTable"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
@@ -16,6 +17,9 @@ import (
 	"testing"
 	"time"
 )
+
+const manifestTableName = "upload-table"
+const manifestFileTableName = "upload-file-table"
 
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -227,17 +231,19 @@ func TestMain(m *testing.M) {
 
 func TestManifest(t *testing.T) {
 	for scenario, fn := range map[string]func(
-		tt *testing.T, ms *ManifestSession,
+		tt *testing.T, client *ManifestSession,
 	){
 		"create and get upload": testCreateGetManifest,
 		"Add files to upload":   testAddFiles,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			client := getClient()
+			store := dynamoStore.NewDynamoStore(client)
+
 			ms := ManifestSession{
 				FileTableName: "upload-file-table",
 				TableName:     "upload-table",
-				Client:        client,
+				Client:        store,
 				SNSClient:     nil,
 				SNSTopic:      "",
 				S3Client:      nil,
@@ -248,9 +254,9 @@ func TestManifest(t *testing.T) {
 	}
 }
 
-func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
+func testCreateGetManifest(t *testing.T, session *ManifestSession) {
 
-	tb := dbTable.ManifestTable{
+	tb := models.ManifestTable{
 		ManifestId:     "1111",
 		DatasetId:      1,
 		DatasetNodeId:  "N:Dataset:1234",
@@ -261,11 +267,12 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 	}
 
 	// Create Manifest
-	err := tb.CreateManifest(ms.Client, ms.TableName, tb)
+	ctx := context.Background()
+	err := session.Client.CreateManifest(ctx, manifestTableName, tb)
 	assert.Nil(t, err, "Manifest 1 could not be created")
 
 	// Create second upload
-	tb2 := dbTable.ManifestTable{
+	tb2 := models.ManifestTable{
 		ManifestId:     "2222",
 		DatasetId:      2,
 		DatasetNodeId:  "N:Dataset:5678",
@@ -275,11 +282,11 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 		DateCreated:    time.Now().Unix(),
 	}
 
-	err = tb.CreateManifest(ms.Client, ms.TableName, tb2)
+	err = session.Client.CreateManifest(ctx, manifestTableName, tb2)
 	assert.Nil(t, err, "Manifest 2 could not be created")
 
 	// Create second upload
-	tb3 := dbTable.ManifestTable{
+	tb3 := models.ManifestTable{
 		ManifestId:     "3333",
 		DatasetId:      2,
 		DatasetNodeId:  "N:Dataset:5678",
@@ -289,11 +296,11 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 		DateCreated:    time.Now().Unix(),
 	}
 
-	err = tb.CreateManifest(ms.Client, ms.TableName, tb3)
+	err = session.Client.CreateManifest(ctx, manifestTableName, tb3)
 	assert.Nil(t, err, "Manifest 3 could not be created")
 
 	// Get Manifest
-	out, err := tb.GetManifestsForDataset(ms.Client, "upload-table", "N:Dataset:1234")
+	out, err := session.Client.GetManifestsForDataset(ctx, "upload-table", "N:Dataset:1234")
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, 1, len(out))
 	assert.Equal(t, "1111", out[0].ManifestId)
@@ -301,14 +308,14 @@ func testCreateGetManifest(t *testing.T, ms *ManifestSession) {
 	assert.Equal(t, int64(1), out[0].UserId)
 
 	// Check that there are two manifests for N:Dataset:5678
-	out, err = tb.GetManifestsForDataset(ms.Client, "upload-table", "N:Dataset:5678")
+	out, err = session.Client.GetManifestsForDataset(ctx, "upload-table", "N:Dataset:5678")
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, 2, len(out))
 	assert.Equal(t, "2222", out[0].ManifestId)
 	assert.Equal(t, "3333", out[1].ManifestId)
 }
 
-func testAddFiles(t *testing.T, ms *ManifestSession) {
+func testAddFiles(t *testing.T, session *ManifestSession) {
 
 	testFileDTOs := []manifestFile.FileDTO{
 		{
@@ -333,7 +340,7 @@ func testAddFiles(t *testing.T, ms *ManifestSession) {
 
 	// Adding files to upload
 	manifestId := "1111"
-	result := ms.AddFiles(manifestId, testFileDTOs, nil)
+	result := session.AddFiles(manifestId, testFileDTOs, nil)
 
 	// Checking returned status
 	assert.Equal(t, manifestFile.Unknown, result.FileStatus[0].Status)
@@ -341,7 +348,7 @@ func testAddFiles(t *testing.T, ms *ManifestSession) {
 
 }
 
-//func testGetAction(t *testing.T, svc *dynamodb.Client) {
+//func testGetAction(t *testing.T, svc *dynamoStore.Client) {
 //
 //	getAction(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status)
 //

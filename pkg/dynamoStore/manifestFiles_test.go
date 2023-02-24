@@ -1,31 +1,30 @@
-package dbTable
+package dynamoStore
 
 import (
+	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestManifestFile(t *testing.T) {
+func TestManifestFileStore(t *testing.T) {
 	for scenario, fn := range map[string]func(
-		tt *testing.T, client *dynamodb.Client,
+		tt *testing.T, client *DynamoStore,
 	){
-		"add files to manifest":                         testSyncFiles,
-		"test removing failed files from sync response": testRemoveFailedFilesFromResponse,
 		"get writeRequests based on status":             testGetAction,
+		"test removing failed files from sync response": testRemoveFailedFilesFromResponse,
+		"add files to manifest":                         testSyncFiles,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			client := getDynamoClient()
-			fn(t, client)
+			store := NewDynamoStore(client)
+			fn(t, store)
 		})
 	}
 }
 
-func testSyncFiles(t *testing.T, client *dynamodb.Client) {
-	var mf *ManifestFileTable
-
+func testSyncFiles(t *testing.T, client *DynamoStore) {
 	manifestId := "1"
 	dtos := []manifestFile.FileDTO{
 		{
@@ -45,11 +44,12 @@ func testSyncFiles(t *testing.T, client *dynamodb.Client) {
 		},
 	}
 
-	stats, err := mf.SyncFiles(client, manifestFileTableName, manifestId, dtos, nil)
+	ctx := context.Background()
+	stats, err := client.SyncFiles(ctx, manifestFileTableName, manifestId, dtos, nil)
 	assert.Nil(t, err, "Manifest files could not be added")
 	assert.Equal(t, 3, stats.NrFilesUpdated, "Number of files updated does not match")
 
-	out, err := mf.GetManifestFile(client, manifestFileTableName, manifestId, "1")
+	out, err := client.GetManifestFile(ctx, manifestFileTableName, manifestId, "1")
 	assert.Nil(t, err, "Manifest file could not be retrieved")
 	assert.Equal(t, "1", out.ManifestId)
 	assert.Equal(t, "test1", out.FileName)
@@ -57,7 +57,7 @@ func testSyncFiles(t *testing.T, client *dynamodb.Client) {
 
 }
 
-func testRemoveFailedFilesFromResponse(t *testing.T, client *dynamodb.Client) {
+func testRemoveFailedFilesFromResponse(t *testing.T, client *DynamoStore) {
 	syncResp := []manifestFile.FileStatusDTO{
 		{
 			UploadId: "1",
@@ -92,9 +92,7 @@ func testRemoveFailedFilesFromResponse(t *testing.T, client *dynamodb.Client) {
 	})
 }
 
-func testGetAction(t *testing.T, client *dynamodb.Client) {
-
-	var mf *ManifestFileTable
+func testGetAction(t *testing.T, client *DynamoStore) {
 	manifestId := "getActionTest"
 
 	file := manifestFile.FileDTO{
@@ -103,84 +101,84 @@ func testGetAction(t *testing.T, client *dynamodb.Client) {
 	}
 
 	// Check file that is newly uploaded and not in manifest Local (Unknown) --> Registered
-	req, status, err := mf.getAction(manifestId, file, manifestFile.Unknown)
+	req, status, err := GetWriteRequest(manifestId, file, manifestFile.Unknown)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Registered, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Check file that is removed locally and previously registered: Removed (Registered) --> Delete request
 	file.Status = manifestFile.Removed
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Registered)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Registered)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Removed, status)
 	assert.NotNil(t, req.DeleteRequest)
 
 	// Failed (Failed) --> Registered
 	file.Status = manifestFile.Failed
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Registered)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Registered)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Registered, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Imported (Finalized) --> Finalized
 	file.Status = manifestFile.Imported
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Finalized)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Finalized)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Verified, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Imported (Imported) --> Imported
 	file.Status = manifestFile.Imported
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Imported)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Imported)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Imported, status)
 	assert.Nil(t, req)
 
 	// Registered (Registered) --> Registered
 	file.Status = manifestFile.Registered
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Registered)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Registered)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Registered, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Registered (Finalized) --> Verified
 	file.Status = manifestFile.Registered
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Finalized)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Finalized)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Verified, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Registered (Imported) --> Verified
 	file.Status = manifestFile.Registered
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Imported)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Imported)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Verified, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Registered (Verified) --> Verified
 	file.Status = manifestFile.Registered
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Verified)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Verified)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Verified, status)
 	assert.NotNil(t, req.PutRequest)
 
 	// Finalized (Finalized) --> Finalized
 	file.Status = manifestFile.Finalized
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Finalized)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Finalized)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Finalized, status)
 	assert.Nil(t, req)
 
 	// Verified (Verified) --> Verified
 	file.Status = manifestFile.Verified
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Verified)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Verified)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Verified, status)
 	assert.Nil(t, req)
 
 	// Unknown (Registered) --> Registered
 	file.Status = manifestFile.Registered
-	req, status, err = mf.getAction(manifestId, file, manifestFile.Registered)
+	req, status, err = GetWriteRequest(manifestId, file, manifestFile.Registered)
 	assert.Nil(t, err, fmt.Sprintf("Could not get action for %v", file))
 	assert.Equal(t, manifestFile.Registered, status)
 	assert.NotNil(t, req.PutRequest)

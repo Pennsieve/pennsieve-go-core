@@ -1,4 +1,4 @@
-package dbTable
+package dynamoStore
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
@@ -223,12 +224,15 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// populateManifestTable populates the test dynamodb table with entries for testing
+// populateManifestTable populates the test dynamoStore table with entries for testing
 func populateManifestTable() {
 
-	client := getDynamoClient()
+	ctx := context.Background()
 
-	tb := ManifestTable{
+	client := getDynamoClient()
+	store := NewDynamoStore(client)
+
+	tb := models.ManifestTable{
 		ManifestId:     "1111",
 		DatasetId:      1,
 		DatasetNodeId:  "N:Dataset:1234",
@@ -239,13 +243,13 @@ func populateManifestTable() {
 	}
 
 	// Create Manifest
-	err := tb.CreateManifest(client, manifestTableName, tb)
+	err := store.CreateManifest(ctx, manifestTableName, tb)
 	if err != nil {
 		log.Fatalln("Unable to create Manifest")
 	}
 
 	// Create second upload
-	tb2 := ManifestTable{
+	tb2 := models.ManifestTable{
 		ManifestId:     "2222",
 		DatasetId:      2,
 		DatasetNodeId:  "N:Dataset:5678",
@@ -255,12 +259,12 @@ func populateManifestTable() {
 		DateCreated:    time.Now().Unix(),
 	}
 
-	err = tb.CreateManifest(client, manifestTableName, tb2)
+	err = store.CreateManifest(ctx, manifestTableName, tb2)
 	if err != nil {
 		log.Fatalln("Unable to create Manifest")
 	}
 	// Create second upload
-	tb3 := ManifestTable{
+	tb3 := models.ManifestTable{
 		ManifestId:     "3333",
 		DatasetId:      2,
 		DatasetNodeId:  "N:Dataset:5678",
@@ -270,7 +274,7 @@ func populateManifestTable() {
 		DateCreated:    time.Now().Unix(),
 	}
 
-	err = tb.CreateManifest(client, manifestTableName, tb3)
+	err = store.CreateManifest(ctx, manifestTableName, tb3)
 	if err != nil {
 		log.Fatalln("Unable to create Manifest")
 	}

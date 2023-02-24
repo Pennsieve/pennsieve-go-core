@@ -1,4 +1,4 @@
-package dbTable
+package dynamoStore
 
 import (
 	"context"
@@ -9,35 +9,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/core"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
 
-// ManifestFileTable is a representation of a ManifestFile in DynamoDB
-type ManifestFileTable struct {
-	ManifestId     string `dynamodbav:"ManifestId"`
-	UploadId       string `dynamodbav:"UploadId"`
-	FilePath       string `dynamodbav:"FilePath,omitempty"`
-	FileName       string `dynamodbav:"FileName"`
-	MergePackageId string `dynamodbav:"MergePackageId,omitempty"`
-	Status         string `dynamodbav:"Status"`
-	FileType       string `dynamodbav:"FileType"`
-	InProgress     string `dynamodbav:"InProgress"`
-}
-
-type ManifestFilePrimaryKey struct {
-	ManifestId string `dynamodbav:"ManifestId"`
-	UploadId   string `dynamodbav:"UploadId"`
-}
-
 // PUBLIC METHODS
 
 // SyncFiles adds or updates files in the manifest file table
-func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string, manifestId string, fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
-	// Create Batch Put request for the fileslice and update dynamodb with one call
+func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId string, fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
+	// Create Batch Put request for the fileslice and update dynamoStore with one call
 	var writeRequests []types.WriteRequest
 
 	var syncResponses []manifestFile.FileStatusDTO
@@ -46,11 +29,11 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 	var nrFilesUpdated int
 	var nrFilesRemoved int
 	for _, file := range fileSlice {
-		// Get existing status for file in dynamodb, Unknown if does not exist
+		// Get existing status for file in dynamoStore, Unknown if does not exist
 		var request *types.WriteRequest
 		var setStatus manifestFile.Status
 		if forceStatus == nil {
-			curStatus, err := f.statusForFileItem(client, tableName, manifestId, &file)
+			curStatus, err := q.statusForFileItem(ctx, tableName, manifestId, &file)
 			if err != nil {
 				log.WithFields(
 					log.Fields{
@@ -62,7 +45,7 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 			}
 
 			// Determine the sync action based on provided status and current status.
-			request, setStatus, err = f.getAction(manifestId, file, curStatus)
+			request, setStatus, err = GetWriteRequest(manifestId, file, curStatus)
 			if err != nil {
 				log.WithFields(
 					log.Fields{
@@ -75,7 +58,7 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 		} else {
 
 			isInProgress := forceStatus.IsInProgress()
-			item := ManifestFileTable{
+			item := models.ManifestFileTable{
 				ManifestId:     manifestId,
 				UploadId:       file.UploadID,
 				FilePath:       file.TargetPath,
@@ -111,7 +94,7 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 			setStatus = *forceStatus
 		}
 
-		// If action requires dynamodb actionm add request to array of requests
+		// If action requires dynamoStore actionm add request to array of requests
 		if request != nil {
 			writeRequests = append(writeRequests, *request)
 		}
@@ -138,7 +121,7 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 		}
 
 		// Write files to upload file dynamobd table
-		data, err := client.BatchWriteItem(context.Background(), &params)
+		data, err := q.db.BatchWriteItem(ctx, &params)
 		if err != nil {
 			log.WithFields(
 				log.Fields{
@@ -162,7 +145,7 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 				ReturnItemCollectionMetrics: "NONE",
 			}
 
-			data, err = client.BatchWriteItem(context.Background(), &params)
+			data, err = q.db.BatchWriteItem(context.Background(), &params)
 			if err != nil {
 				log.WithFields(
 					log.Fields{
@@ -189,7 +172,7 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 			putRequestList := unProcessedItems[tableName]
 			for _, f := range putRequestList {
 				item := f.PutRequest.Item
-				fileEntry := ManifestFileTable{}
+				fileEntry := models.ManifestFileTable{}
 				err = attributevalue.UnmarshalMap(item, &fileEntry)
 				if err != nil {
 					log.Error("Unable to UnMarshall unprocessed items. ", err)
@@ -213,10 +196,10 @@ func (f *ManifestFileTable) SyncFiles(client core.DynamoDBAPI, tableName string,
 	return &response, err
 }
 
-// UpdateFileTableStatus updates the status of the file in the file-table dynamodb
-func (f *ManifestFileTable) UpdateFileTableStatus(client core.DynamoDBAPI, tableName string, manifestId string, uploadId string, status manifestFile.Status, msg string) error {
+// UpdateFileTableStatus updates the status of the file in the file-table dynamoStore
+func (q *Queries) UpdateFileTableStatus(ctx context.Context, tableName string, manifestId string, uploadId string, status manifestFile.Status, msg string) error {
 
-	_, err := client.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+	_, err := q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
@@ -236,7 +219,7 @@ func (f *ManifestFileTable) UpdateFileTableStatus(client core.DynamoDBAPI, table
 }
 
 // GetFilesForPath returns files in path for a upload with optional filter.
-func (f *ManifestFileTable) GetFilesForPath(client core.DynamoDBAPI, tableName string, manifestId string, path string, filter string,
+func (q *Queries) GetFilesForPath(ctx context.Context, tableName string, manifestId string, path string, filter string,
 	limit int32, startKey map[string]types.AttributeValue) (*dynamodb.QueryOutput, error) {
 
 	queryInput := dynamodb.QueryInput{
@@ -251,7 +234,7 @@ func (f *ManifestFileTable) GetFilesForPath(client core.DynamoDBAPI, tableName s
 		Select:                    "ALL_ATTRIBUTES",
 	}
 
-	result, err := client.Query(context.Background(), &queryInput)
+	result, err := q.db.Query(ctx, &queryInput)
 	if err != nil {
 		return nil, err
 	}
@@ -260,10 +243,10 @@ func (f *ManifestFileTable) GetFilesForPath(client core.DynamoDBAPI, tableName s
 }
 
 // GetManifestFile returns a upload file from the ManifestFile Table.
-func (f *ManifestFileTable) GetManifestFile(client core.DynamoDBAPI, tableName string, manifestId string, uploadId string) (*ManifestFileTable, error) {
-	item := ManifestFileTable{}
+func (q *Queries) GetManifestFile(ctx context.Context, tableName string, manifestId string, uploadId string) (*models.ManifestFileTable, error) {
+	item := models.ManifestFileTable{}
 
-	data, err := client.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	data, err := q.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
@@ -288,8 +271,8 @@ func (f *ManifestFileTable) GetManifestFile(client core.DynamoDBAPI, tableName s
 }
 
 // GetFilesPaginated returns paginated list of files for a given manifestID and optional status.
-func (f *ManifestFileTable) GetFilesPaginated(client core.DynamoDBAPI, tableName string, manifestId string, status sql.NullString,
-	limit int32, startKey map[string]types.AttributeValue) ([]ManifestFileTable, map[string]types.AttributeValue, error) {
+func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manifestId string, status sql.NullString,
+	limit int32, startKey map[string]types.AttributeValue) ([]models.ManifestFileTable, map[string]types.AttributeValue, error) {
 
 	var queryInput dynamodb.QueryInput
 	switch status.Valid {
@@ -326,7 +309,7 @@ func (f *ManifestFileTable) GetFilesPaginated(client core.DynamoDBAPI, tableName
 			}
 		}
 	case false:
-		// Query from main dynamodb
+		// Query from main dynamoStore
 		queryInput = dynamodb.QueryInput{
 			TableName:              aws.String(tableName),
 			ExclusiveStartKey:      startKey,
@@ -339,15 +322,15 @@ func (f *ManifestFileTable) GetFilesPaginated(client core.DynamoDBAPI, tableName
 		}
 	}
 
-	result, err := client.Query(context.Background(), &queryInput)
+	result, err := q.db.Query(ctx, &queryInput)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var items []ManifestFileTable
+	var items []models.ManifestFileTable
 	for _, item := range result.Items {
 		fmt.Println("Hello item: ", item)
-		manifestFile := ManifestFileTable{}
+		manifestFile := models.ManifestFileTable{}
 		err = attributevalue.UnmarshalMap(item, &manifestFile)
 		if err != nil {
 			return nil, nil, fmt.Errorf("UnmarshalMap: %v\n", err)
@@ -361,14 +344,14 @@ func (f *ManifestFileTable) GetFilesPaginated(client core.DynamoDBAPI, tableName
 // PRIVATE METHODS
 
 // getAction returns the writeRequests for a given fileDTO and current status
-func (f *ManifestFileTable) getAction(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status) (*types.WriteRequest, manifestFile.Status, error) {
+func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status) (*types.WriteRequest, manifestFile.Status, error) {
 
 	/*
 		serverside status: sync, imported, finalized, verified, failed
 		clientside status: initiated, sync, imported, verified, failed, unknown
 
 	*/
-	item := ManifestFileTable{
+	item := models.ManifestFileTable{
 		ManifestId:     manifestId,
 		UploadId:       file.UploadID,
 		FilePath:       file.TargetPath,
@@ -380,10 +363,10 @@ func (f *ManifestFileTable) getAction(manifestId string, file manifestFile.FileD
 
 	// Switch based on provided status from client
 	// file --> provided as part of request
-	// curStatus --> current status in dynamodb
+	// curStatus --> current status in dynamoStore
 	switch file.Status {
 	case manifestFile.Removed:
-		// File is removed after being synced --> remove from dynamodb if not uploaded already.
+		// File is removed after being synced --> remove from dynamoStore if not uploaded already.
 		// If uploaded --> return current status
 
 		switch curStatus {
@@ -417,8 +400,8 @@ func (f *ManifestFileTable) getAction(manifestId string, file manifestFile.FileD
 
 			return nil, curStatus, nil
 		default:
-			// If server synced or failed --> remove from dynamodb
-			data, err := attributevalue.MarshalMap(ManifestFilePrimaryKey{
+			// If server synced or failed --> remove from dynamoStore
+			data, err := attributevalue.MarshalMap(models.ManifestFilePrimaryKey{
 				ManifestId: manifestId,
 				UploadId:   file.UploadID,
 			})
@@ -467,7 +450,7 @@ func (f *ManifestFileTable) getAction(manifestId string, file manifestFile.FileD
 
 			return &request, manifestFile.Verified, nil
 		case manifestFile.Registered, manifestFile.Failed, manifestFile.Unknown:
-			// server is synced, failed, unknown --> add/update the entry in dynamodb
+			// server is synced, failed, unknown --> add/update the entry in dynamoStore
 			item.Status = manifestFile.Registered.String()
 			item.InProgress = "x"
 
@@ -589,7 +572,7 @@ func (f *ManifestFileTable) getAction(manifestId string, file manifestFile.FileD
 
 }
 
-func (f *ManifestFileTable) statusForFileItem(client core.DynamoDBAPI, tableName string, manifestId string, file *manifestFile.FileDTO) (manifestFile.Status, error) {
+func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manifestId string, file *manifestFile.FileDTO) (manifestFile.Status, error) {
 	// Get current status in db if exist
 	getItemInput := &dynamodb.GetItemInput{
 		Key: map[string]types.AttributeValue{
@@ -599,12 +582,12 @@ func (f *ManifestFileTable) statusForFileItem(client core.DynamoDBAPI, tableName
 		TableName: aws.String(tableName),
 	}
 
-	result, err := client.GetItem(context.Background(), getItemInput)
+	result, err := q.db.GetItem(context.Background(), getItemInput)
 	if err != nil {
-		log.Error("Error getting item from dynamodb")
+		log.Error("Error getting item from dynamoStore")
 	}
 
-	var pItem ManifestFileTable
+	var pItem models.ManifestFileTable
 	if len(result.Item) > 0 {
 		err = attributevalue.UnmarshalMap(result.Item, &pItem)
 		if err != nil {
@@ -618,7 +601,7 @@ func (f *ManifestFileTable) statusForFileItem(client core.DynamoDBAPI, tableName
 	return manifestFile.Unknown, nil
 }
 
-// removeFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dynamodb
+// RemoveFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dynamoStore
 func removeFailedFilesFromResponse(failedRequests []string, syncResponses []manifestFile.FileStatusDTO) []manifestFile.FileStatusDTO {
 
 	var newResponses []manifestFile.FileStatusDTO

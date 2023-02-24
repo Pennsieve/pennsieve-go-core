@@ -121,33 +121,6 @@ func GetDatasetClaim(db core.PostgresAPI, user *models.User, datasetNodeId strin
 
 }
 
-// GetOrganizationClaim returns an organization claim for a specific user.
-func GetOrganizationClaim(db core.PostgresAPI, userId int64, organizationId int64) (*organization.Claim, error) {
-
-	var orgUser models.OrganizationUser
-	currentOrgUser, err := orgUser.GetByUserId(db, userId)
-	if err != nil {
-		log.Error("Unable to check Org User: ", err)
-		return nil, err
-	}
-
-	var orgFeat models.FeatureFlags
-	allFeatures, err := orgFeat.GetAll(db, organizationId)
-	if err != nil {
-		log.Error("Unable to check Feature Flags: ", err)
-		return nil, err
-	}
-
-	orgRole := organization.Claim{
-		Role:            currentOrgUser.DbPermission,
-		IntId:           organizationId,
-		EnabledFeatures: allFeatures,
-	}
-
-	return &orgRole, nil
-
-}
-
 // ParseClaims creates a Claims object from a string map which is returned by the authorizer.
 func ParseClaims(claims map[string]interface{}) *Claims {
 

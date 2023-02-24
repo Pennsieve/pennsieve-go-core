@@ -65,6 +65,7 @@ func testAddPackage(t *testing.T, store *SQLStore) {
 			Attributes:   attr,
 		},
 	}
+
 	results, err := store.AddPackages(context.Background(), records)
 	assert.NoError(t, err)
 	assert.Equal(t, records[0].Name, results[0].Name)

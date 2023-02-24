@@ -1,4 +1,4 @@
-package dbTable
+package dynamoStore
 
 import (
 	"context"
@@ -8,24 +8,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/core"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	log "github.com/sirupsen/logrus"
 )
 
-// ManifestTable is a representation of a Manifest in DynamoDB
-type ManifestTable struct {
-	ManifestId     string `dynamodbav:"ManifestId"`
-	DatasetId      int64  `dynamodbav:"DatasetId"`
-	DatasetNodeId  string `dynamodbav:"DatasetNodeId"`
-	OrganizationId int64  `dynamodbav:"OrganizationId"`
-	UserId         int64  `dynamodbav:"UserId"`
-	Status         string `dynamodbav:"Status"`
-	DateCreated    int64  `dynamodbav:"DateCreated"`
-}
-
 // CreateManifest creates a new Manifest in DynamoDB
-func (m *ManifestTable) CreateManifest(client core.DynamoDBAPI, manifestTableName string, item ManifestTable) error {
+func (q *Queries) CreateManifest(ctx context.Context, manifestTableName string, item models.ManifestTable) error {
 
 	data, err := attributevalue.MarshalMap(item)
 	if err != nil {
@@ -40,7 +29,7 @@ func (m *ManifestTable) CreateManifest(client core.DynamoDBAPI, manifestTableNam
 		return fmt.Errorf("MarshalMap: %v\n", err)
 	}
 
-	_, err = client.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = q.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName: aws.String(manifestTableName),
 		Item:      data,
 	})
@@ -61,11 +50,11 @@ func (m *ManifestTable) CreateManifest(client core.DynamoDBAPI, manifestTableNam
 }
 
 // GetFromManifest returns a Manifest item for a given upload ID.
-func (m *ManifestTable) GetFromManifest(client core.DynamoDBAPI, manifestTableName string, manifestId string) (*ManifestTable, error) {
+func (q *Queries) GetFromManifest(ctx context.Context, manifestTableName string, manifestId string) (*models.ManifestTable, error) {
 
-	item := ManifestTable{}
+	item := models.ManifestTable{}
 
-	data, err := client.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	data, err := q.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(manifestTableName),
 		Key: map[string]types.AttributeValue{
 			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
@@ -89,7 +78,7 @@ func (m *ManifestTable) GetFromManifest(client core.DynamoDBAPI, manifestTableNa
 }
 
 // GetManifestsForDataset returns all manifests for a given dataset.
-func (m *ManifestTable) GetManifestsForDataset(client core.DynamoDBAPI, manifestTableName string, datasetNodeId string) ([]ManifestTable, error) {
+func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName string, datasetNodeId string) ([]models.ManifestTable, error) {
 
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(manifestTableName),
@@ -101,14 +90,14 @@ func (m *ManifestTable) GetManifestsForDataset(client core.DynamoDBAPI, manifest
 		Select: "ALL_ATTRIBUTES",
 	}
 
-	result, err := client.Query(context.Background(), &queryInput)
+	result, err := q.db.Query(context.Background(), &queryInput)
 	if err != nil {
 		return nil, err
 	}
 
-	items := []ManifestTable{}
+	items := []models.ManifestTable{}
 	for _, item := range result.Items {
-		manifest := ManifestTable{}
+		manifest := models.ManifestTable{}
 		err = attributevalue.UnmarshalMap(item, &manifest)
 		if err != nil {
 			return nil, fmt.Errorf("UnmarshalMap: %v\n", err)
@@ -119,10 +108,10 @@ func (m *ManifestTable) GetManifestsForDataset(client core.DynamoDBAPI, manifest
 	return items, nil
 }
 
-// UpdateManifestStatus updates the status of the upload in dynamodb
-func (m *ManifestTable) UpdateManifestStatus(client core.DynamoDBAPI, tableName string, manifestId string, status manifest.Status) error {
+// UpdateManifestStatus updates the status of the upload in dynamoStore
+func (q *Queries) UpdateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
 
-	_, err := client.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+	_, err := q.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},

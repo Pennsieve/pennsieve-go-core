@@ -1,16 +1,17 @@
-package dbTable
+package dynamoStore
 
 import (
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"context"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
 
-func TestManifest(t *testing.T) {
+func TestManifestsStore(t *testing.T) {
 	for scenario, fn := range map[string]func(
-		tt *testing.T, client *dynamodb.Client,
+		tt *testing.T, client *DynamoStore,
 	){
 		"get manifest by id":         testGetManifestById,
 		"get manifests for dataset":  testGetManifestsForDataset,
@@ -18,14 +19,15 @@ func TestManifest(t *testing.T) {
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			client := getDynamoClient()
-			fn(t, client)
+			store := NewDynamoStore(client)
+			fn(t, store)
 		})
 	}
 }
 
-func testGetManifestById(t *testing.T, client *dynamodb.Client) {
+func testGetManifestById(t *testing.T, client *DynamoStore) {
 
-	tb := ManifestTable{
+	tb := models.ManifestTable{
 		ManifestId:     "4444",
 		DatasetId:      1,
 		DatasetNodeId:  "N:Dataset:1234",
@@ -34,41 +36,41 @@ func testGetManifestById(t *testing.T, client *dynamodb.Client) {
 		Status:         "Unknown",
 		DateCreated:    time.Now().Unix(),
 	}
+	ctx := context.Background()
 
-	err := tb.CreateManifest(client, manifestTableName, tb)
+	err := client.CreateManifest(ctx, manifestTableName, tb)
 	assert.Nil(t, err, "Manifest could not be created")
 
-	out, err := tb.GetFromManifest(client, manifestTableName, tb.ManifestId)
+	out, err := client.GetFromManifest(ctx, manifestTableName, tb.ManifestId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, "N:Dataset:1234", out.DatasetNodeId)
 }
 
-func testGetManifestsForDataset(t *testing.T, client *dynamodb.Client) {
+func testGetManifestsForDataset(t *testing.T, client *DynamoStore) {
 
-	var m *ManifestTable
-
+	ctx := context.Background()
 	// Return multiple manifests
 	datasetNodeId := "N:Dataset:5678"
-	out, err := m.GetManifestsForDataset(client, manifestTableName, datasetNodeId)
+	out, err := client.GetManifestsForDataset(ctx, manifestTableName, datasetNodeId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, 2, len(out), "Incorrect number of manifests returned")
 
 	// Return empty array for dataset without manifests
 	nonExisitingNodeId := "No:Dataset"
-	out, err = m.GetManifestsForDataset(client, manifestTableName, nonExisitingNodeId)
+	out, err = client.GetManifestsForDataset(ctx, manifestTableName, nonExisitingNodeId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, 0, len(out), "Incorrect number of manifests returned")
 
 }
 
-func testUpdateManifestStatus(t *testing.T, client *dynamodb.Client) {
-	var m *ManifestTable
+func testUpdateManifestStatus(t *testing.T, client *DynamoStore) {
+	ctx := context.Background()
 	manifestId := "1111"
 
-	err := m.UpdateManifestStatus(client, manifestTableName, manifestId, manifest.Completed)
+	err := client.UpdateManifestStatus(ctx, manifestTableName, manifestId, manifest.Completed)
 	assert.Nil(t, err, "Manifest status could not be updated")
 
-	out, err := m.GetFromManifest(client, manifestTableName, manifestId)
+	out, err := client.GetFromManifest(ctx, manifestTableName, manifestId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, "Completed", out.Status)
 }
