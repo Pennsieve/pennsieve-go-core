@@ -15,6 +15,7 @@ type PostgresAPI interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 	QueryRow(query string, args ...any) *sql.Row
 	Exec(query string, args ...any) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	Prepare(query string) (*sql.Stmt, error)
 	Close() error
 }
@@ -69,17 +70,22 @@ func ConnectRDSWithOrg(orgId int) (*sql.DB, error) {
 // - PENNSIEVE_DB
 // - POSTGRES_SSL_MODE (should be set to "disable" if the server is not https, left blank if it is)
 func ConnectENV() (*sql.DB, error) {
-	host := os.Getenv("POSTGRES_HOST")
-	port := os.Getenv("POSTGRES_PORT")
-	if port == "" {
-		port = "5432"
-	}
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	dbName := os.Getenv("PENNSIEVE_DB")
-	sslMode := os.Getenv("POSTGRES_SSL_MODE")
+	host := getEnv("POSTGRES_HOST", "localhost")
+	port := getEnv("POSTGRES_PORT", "5432")
+	user := getEnv("POSTGRES_USER", "postgres")
+	password := getEnv("POSTGRES_PASSWORD", "password")
+	dbName := getEnv("PENNSIEVE_DB", "postgres")
+	sslMode := getEnv("POSTGRES_SSL_MODE", "disable")
 
 	return connect(host, port, user, password, dbName, sslMode)
+}
+
+func getEnv(key, fallback string) string {
+	value := os.Getenv(key)
+	if len(value) == 0 {
+		return fallback
+	}
+	return value
 }
 
 func ConnectENVWithOrg(orgId int) (*sql.DB, error) {

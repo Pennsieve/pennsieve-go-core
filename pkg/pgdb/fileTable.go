@@ -1,4 +1,4 @@
-package dbTable
+package pgdb
 
 import (
 	"fmt"
