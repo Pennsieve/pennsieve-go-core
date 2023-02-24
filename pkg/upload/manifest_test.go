@@ -331,13 +331,23 @@ func testAddFiles(t *testing.T, ms *ManifestSession) {
 		},
 	}
 
+	testFileUploadIds := map[string]any{}
+	for _, f := range testFileDTOs {
+		testFileUploadIds[f.UploadID] = nil
+	}
+
 	// Adding files to upload
 	manifestId := "1111"
 	result := ms.AddFiles(manifestId, testFileDTOs, nil)
 
 	// Checking returned status
 	assert.Equal(t, manifestFile.Unknown, result.FileStatus[0].Status)
-	assert.Equal(t, testFileDTOs[0].UploadID, result.FileStatus[0].UploadId)
+
+	resultUploadIds := map[string]any{}
+	for _, f := range result.FileStatus {
+		resultUploadIds[f.UploadId] = nil
+	}
+	assert.Equal(t, testFileUploadIds, resultUploadIds)
 
 }
 
