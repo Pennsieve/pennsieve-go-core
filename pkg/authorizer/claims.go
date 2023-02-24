@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/core"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
-	dbTable2 "github.com/pennsieve/pennsieve-go-core/pkg/models/dbTable"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/permissions"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
+	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
 	log "github.com/sirupsen/logrus"
 	"sort"
 )
@@ -22,7 +22,7 @@ type Claims struct {
 
 // GetDatasetClaim returns the highest role that the user has for a given dataset.
 // This method checks the roles of the dataset, the teams, and the specific user roles.
-func GetDatasetClaim(db core.PostgresAPI, user *dbTable2.User, datasetNodeId string, organizationId int64) (*dataset.Claim, error) {
+func GetDatasetClaim(db core.PostgresAPI, user *models.User, datasetNodeId string, organizationId int64) (*dataset.Claim, error) {
 
 	// if user is super-admin
 	if user.IsSuperAdmin {
@@ -124,14 +124,14 @@ func GetDatasetClaim(db core.PostgresAPI, user *dbTable2.User, datasetNodeId str
 // GetOrganizationClaim returns an organization claim for a specific user.
 func GetOrganizationClaim(db core.PostgresAPI, userId int64, organizationId int64) (*organization.Claim, error) {
 
-	var orgUser dbTable2.OrganizationUser
+	var orgUser models.OrganizationUser
 	currentOrgUser, err := orgUser.GetByUserId(db, userId)
 	if err != nil {
 		log.Error("Unable to check Org User: ", err)
 		return nil, err
 	}
 
-	var orgFeat dbTable2.FeatureFlags
+	var orgFeat models.FeatureFlags
 	allFeatures, err := orgFeat.GetAll(db, organizationId)
 	if err != nil {
 		log.Error("Unable to check Feature Flags: ", err)
@@ -156,7 +156,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		orgClaims := val.(map[string]interface{})
 		orgRole := int64(orgClaims["Role"].(float64))
 		orgClaim = organization.Claim{
-			Role:            dbTable2.DbPermission(orgRole),
+			Role:            models.DbPermission(orgRole),
 			IntId:           int64(orgClaims["IntId"].(float64)),
 			EnabledFeatures: nil,
 		}

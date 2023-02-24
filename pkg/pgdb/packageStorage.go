@@ -1,23 +1,18 @@
-package dbTable
+package pgdb
 
 import (
-	"github.com/pennsieve/pennsieve-go-core/pkg/core"
-	"log"
+	"context"
+	log "github.com/sirupsen/logrus"
 )
 
-type PackageStorage struct {
-	PackageId int64 `json:"package_id"`
-	Size      int64 `json:"size"`
-}
-
-// Increment increases the storage associated with the provided package.
-func (p *PackageStorage) Increment(db core.PostgresAPI, packageId int64, size int64) error {
+// IncrementPackageStorage increases the storage associated with the provided package.
+func (q *Queries) IncrementPackageStorage(ctx context.Context, packageId int64, size int64) error {
 
 	queryStr := "INSERT INTO package_storage AS package_storage (package_id, size) " +
 		"VALUES ($1, $2) ON CONFLICT (package_id) " +
 		"DO UPDATE SET size = COALESCE(package_storage.size, 0) + EXCLUDED.size;"
 
-	_, err := db.Exec(queryStr, packageId, size)
+	_, err := q.db.ExecContext(ctx, queryStr, packageId, size)
 	if err != nil {
 		log.Println("Error incrementing package size: ", err)
 	}
@@ -25,8 +20,8 @@ func (p *PackageStorage) Increment(db core.PostgresAPI, packageId int64, size in
 	return err
 }
 
-// IncrementAncestors increases the storage associated with the parents of the provided package.
-func (p *PackageStorage) IncrementAncestors(db core.PostgresAPI, parentId int64, size int64) error {
+// IncrementPackageStorageAncestors increases the storage associated with the parents of the provided package.
+func (q *Queries) IncrementPackageStorageAncestors(ctx context.Context, parentId int64, size int64) error {
 
 	queryStr := "" +
 		"WITH RECURSIVE ancestors(id, parent_id) AS (" +
@@ -46,7 +41,7 @@ func (p *PackageStorage) IncrementAncestors(db core.PostgresAPI, parentId int64,
 		"ON CONFLICT (package_id) " +
 		"DO UPDATE SET size = COALESCE(package_storage.size, 0) + EXCLUDED.size;"
 
-	_, err := db.Exec(queryStr, parentId, size)
+	_, err := q.db.ExecContext(ctx, queryStr, parentId, size)
 	if err != nil {
 		log.Println("Error incrementing package size: ", err)
 	}

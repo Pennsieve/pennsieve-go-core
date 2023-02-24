@@ -1,11 +1,9 @@
-package dbTable
+package models
 
 import (
 	"database/sql"
 	"github.com/google/uuid"
-	"github.com/pennsieve/pennsieve-go-core/pkg/core"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
-	"log"
 	"time"
 )
 
@@ -49,28 +47,4 @@ type DatasetTeam struct {
 	Role      dataset.Role `json:"role"`
 	CreatedAt time.Time    `json:"created_at"`
 	UpdatedAt time.Time    `json:"updated_at"`
-}
-
-// GetAll returns all rows in the Upload Record Table
-func (d *Dataset) GetAll(db core.PostgresAPI, organizationId int) ([]Dataset, error) {
-	queryStr := "SELECT (name, state) FROM datasets"
-
-	rows, err := db.Query(queryStr)
-	var allDatasets []Dataset
-	if err == nil {
-		for rows.Next() {
-			var currentRecord Dataset
-			err = rows.Scan(
-				&currentRecord.Name,
-				&currentRecord.State)
-
-			if err != nil {
-				log.Println("ERROR: ", err)
-			}
-
-			allDatasets = append(allDatasets, currentRecord)
-		}
-		return allDatasets, err
-	}
-	return allDatasets, err
 }
