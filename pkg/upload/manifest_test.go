@@ -7,8 +7,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
+	dynamo2 "github.com/pennsieve/pennsieve-go-core/pkg/dynamodb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamodb/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
@@ -238,7 +238,7 @@ func TestManifest(t *testing.T) {
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			client := getClient()
-			store := dynamoStore.NewDynamoStore(client)
+			store := dynamo2.NewDynamoStore(client)
 
 			ms := ManifestSession{
 				FileTableName: "upload-file-table",
@@ -348,7 +348,7 @@ func testAddFiles(t *testing.T, session *ManifestSession) {
 
 }
 
-//func testGetAction(t *testing.T, svc *dynamoStore.Client) {
+//func testGetAction(t *testing.T, svc *dynamodb.Client) {
 //
 //	getAction(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status)
 //

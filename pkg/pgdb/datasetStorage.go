@@ -5,7 +5,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Increment increases the storage associated with the provided dataset.
+// IncrementDatasetStorage increases the storage associated with the provided dataset.
 func (q *Queries) IncrementDatasetStorage(ctx context.Context, datasetId int64, size int64) error {
 
 	queryStr := "INSERT INTO dataset_storage " +

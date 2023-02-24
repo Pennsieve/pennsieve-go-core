@@ -1,4 +1,4 @@
-package dbDiscover
+package models
 
 import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"

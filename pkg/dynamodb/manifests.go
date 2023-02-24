@@ -1,4 +1,4 @@
-package dynamoStore
+package dynamodb
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamodb/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	log "github.com/sirupsen/logrus"
 )
@@ -108,7 +108,7 @@ func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName 
 	return items, nil
 }
 
-// UpdateManifestStatus updates the status of the upload in dynamoStore
+// UpdateManifestStatus updates the status of the upload in dynamodb
 func (q *Queries) UpdateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
 
 	_, err := q.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{

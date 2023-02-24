@@ -3,8 +3,8 @@ package upload
 import (
 	"context"
 	"fmt"
-	core2 "github.com/pennsieve/pennsieve-go-core/pkg/core"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore"
+	core2 "github.com/pennsieve/pennsieve-go-core/pkg/domain"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamodb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
@@ -13,13 +13,13 @@ import (
 
 var syncWG sync.WaitGroup
 
-const batchSize = 25 // maximum batch size for batchPut action on dynamoStore
+const batchSize = 25 // maximum batch size for batchPut action on dynamodb
 const nrWorkers = 2  // preliminary profiling shows that more workers don't improve efficiency for up to 1000 files
 
 type ManifestSession struct {
 	FileTableName string
 	TableName     string
-	Client        *dynamoStore.DynamoStore
+	Client        *dynamodb.DynamoStore
 	SNSClient     core2.SnsAPI
 	SNSTopic      string
 	S3Client      core2.S3API
@@ -86,7 +86,7 @@ func (s ManifestSession) AddFiles(manifestId string, items []manifestFile.FileDT
 // createOrUpdateFile is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
 func (s ManifestSession) createOrUpdateFile(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
 
-	//store := dynamoStore.NewDynamoStore(s.Client)
+	//store := dynamodb.NewDynamoStore(s.Client)
 	ctx := context.Background()
 
 	response := manifest.AddFilesStats{}
@@ -96,7 +96,7 @@ func (s ManifestSession) createOrUpdateFile(workerId int32, files fileWalk, mani
 	for record := range files {
 		fileSlice = append(fileSlice, record)
 
-		// When the number of items in fileSize matches the batchSize --> make call to update dynamoStore
+		// When the number of items in fileSize matches the batchSize --> make call to update dynamodb
 		if len(fileSlice) == batchSize {
 			stats, _ := s.Client.SyncFiles(ctx, s.FileTableName, manifestId, fileSlice, forceStatus)
 			fileSlice = nil

@@ -1,4 +1,4 @@
-package dynamoStore
+package dynamodb
 
 import (
 	"context"

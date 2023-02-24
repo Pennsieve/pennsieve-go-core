@@ -91,7 +91,7 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
 		"empty": {},
 	}
 
-	//db, err := core.ConnectENVWithOrg(orgId)
+	//db, err := domain.ConnectENVWithOrg(orgId)
 	//
 	//assert.NoError(t, err)
 	//defer db.Close()

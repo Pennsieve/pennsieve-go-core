@@ -2,7 +2,6 @@ package pgdb
 
 import (
 	"database/sql"
-	"github.com/pennsieve/pennsieve-go-core/pkg/core"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
@@ -15,7 +14,7 @@ func TestMain(m *testing.M) {
 	var err error
 
 	orgId = 2
-	testDB, err = core.ConnectENVWithOrg(orgId)
+	testDB, err = ConnectENVWithOrg(orgId)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}

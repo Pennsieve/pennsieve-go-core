@@ -1,8 +1,8 @@
-package dynamoStore
+package dynamodb
 
 import (
 	"context"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamoStore/models"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dynamodb/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/stretchr/testify/assert"
 	"testing"
