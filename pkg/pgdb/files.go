@@ -1,62 +1,20 @@
 package pgdb
 
 import (
+	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/pennsieve/pennsieve-go-core/pkg/core"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/objectType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/processingState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/uploadState"
-	"log"
+	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
+	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
 )
 
-type File struct {
-	Id              string                          `json:"id"`
-	PackageId       int                             `json:"package_id"`
-	Name            string                          `json:"name"`
-	FileType        fileType.Type                   `json:"file_type"`
-	S3Bucket        string                          `json:"s3_bucket"`
-	S3Key           string                          `json:"s3_key"`
-	ObjectType      objectType.ObjectType           `json:"object_type"`
-	Size            int64                           `json:"size"`
-	CheckSum        string                          `json:"checksum"`
-	UUID            uuid.UUID                       `json:"uuid"`
-	ProcessingState processingState.ProcessingState `json:"processing_state"`
-	UploadedState   uploadState.UploadedState       `json:"uploaded_state"`
-	CreatedAt       time.Time                       `json:"created_at"`
-	UpdatedAt       time.Time                       `json:"updated_at"`
-}
-
-type FileParams struct {
-	PackageId  int                   `json:"package_id"`
-	Name       string                `json:"name"`
-	FileType   fileType.Type         `json:"file_type"`
-	S3Bucket   string                `json:"s3_bucket"`
-	S3Key      string                `json:"s3_key"`
-	ObjectType objectType.ObjectType `json:"object_type"`
-	Size       int64                 `json:"size"`
-	CheckSum   string                `json:"checksum"`
-	Sha256     string                `json:"sha256"`
-	UUID       uuid.UUID             `json:"uuid"`
-}
-
-type ErrFileNotFound struct{}
-
-func (m *ErrFileNotFound) Error() string {
-	return "File does not exist in postgres"
-}
-
-type ErrMultipleRowsAffected struct{}
-
-func (m *ErrMultipleRowsAffected) Error() string {
-	return "Multiple files in files table were updated"
-}
-
-func (p *File) Add(db core.PostgresAPI, files []FileParams) ([]File, error) {
+func (q *Queries) AddFiles(ctx context.Context, files []models.FileParams) ([]models.File, error) {
 
 	currentTime := time.Now()
 	var vals []interface{}
@@ -96,14 +54,14 @@ func (p *File) Add(db core.PostgresAPI, files []FileParams) ([]File, error) {
 	sqlInsert = sqlInsert + strings.Join(inserts, ",") + fmt.Sprintf("RETURNING %s;", returnRows)
 
 	//prepare the statement
-	stmt, err := db.Prepare(sqlInsert)
+	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
 	if err != nil {
 		log.Fatalln("ERROR: ", err)
 	}
 	defer stmt.Close()
 
 	// format all vals at once
-	var allInsertedFiles []File
+	var allInsertedFiles []models.File
 	rows, err := stmt.Query(vals...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
@@ -113,7 +71,7 @@ func (p *File) Add(db core.PostgresAPI, files []FileParams) ([]File, error) {
 	}
 
 	for rows.Next() {
-		var currentRecord File
+		var currentRecord models.File
 
 		var fType string
 		var oType string
@@ -157,11 +115,11 @@ func (p *File) Add(db core.PostgresAPI, files []FileParams) ([]File, error) {
 	return allInsertedFiles, err
 }
 
-// UpdateBucket updates the storage bucket as part of upload process and sets Status
-func (p *File) UpdateBucket(db core.PostgresAPI, uploadId string, bucket string, s3Key string, organizationId int64) error {
+// UpdateBucketForFile updates the storage bucket as part of upload process and sets Status
+func (q *Queries) UpdateBucketForFile(ctx context.Context, uploadId string, bucket string, s3Key string, organizationId int64) error {
 
 	queryStr := fmt.Sprintf("UPDATE \"%d\".files SET s3_bucket=$1, s3_key=$2 WHERE UUID=$3;", organizationId)
-	result, err := db.Exec(queryStr, bucket, s3Key, uploadId)
+	result, err := q.db.ExecContext(ctx, queryStr, bucket, s3Key, uploadId)
 
 	msg := ""
 	if err != nil {
@@ -176,12 +134,12 @@ func (p *File) UpdateBucket(db core.PostgresAPI, uploadId string, bucket string,
 	}
 	if affectedRows != 1 {
 		if affectedRows == 0 {
-			nofFoundError := &ErrFileNotFound{}
+			nofFoundError := &models.ErrFileNotFound{}
 			log.Println(nofFoundError.Error())
 			return nofFoundError
 		}
 
-		multipleRowError := &ErrMultipleRowsAffected{}
+		multipleRowError := &models.ErrMultipleRowsAffected{}
 		log.Println(multipleRowError.Error())
 		return multipleRowError
 	}

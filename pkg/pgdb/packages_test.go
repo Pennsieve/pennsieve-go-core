@@ -7,10 +7,12 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
+	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
+// TestPackageTable is the main Test Suite function for Packages.
 func TestPackageTable(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore,
@@ -24,6 +26,8 @@ func TestPackageTable(t *testing.T) {
 		})
 	}
 }
+
+// TESTS
 
 func testAddPackage(t *testing.T, store *SQLStore) {
 
@@ -47,7 +51,7 @@ func testAddPackage(t *testing.T, store *SQLStore) {
 		},
 	}
 
-	records := []PackageParams{
+	records := []models.PackageParams{
 		{
 			Name:         "TestAddPackage.jpg",
 			PackageType:  packageType.Image,
@@ -65,12 +69,6 @@ func testAddPackage(t *testing.T, store *SQLStore) {
 	assert.NoError(t, err)
 	assert.Equal(t, records[0].Name, results[0].Name)
 
-}
-
-func truncate(t *testing.T, db *sql.DB, orgID int, table string) {
-	query := fmt.Sprintf("TRUNCATE TABLE \"%d\".%s CASCADE", orgID, table)
-	_, err := db.Exec(query)
-	assert.NoError(t, err)
 }
 
 func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
@@ -98,7 +96,7 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
 	//defer db.Close()
 	for name, expectedAttributes := range tests {
 		t.Run(name, func(t *testing.T) {
-			p := Package{
+			p := models.Package{
 				Name:         "image.jpg",
 				PackageType:  packageType.Image,
 				PackageState: packageState.Ready,
@@ -122,7 +120,7 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
 				"SELECT name, type, state, node_id, dataset_id, owner_id, attributes FROM \"%d\".packages",
 				orgId)
 
-			var actual Package
+			var actual models.Package
 			assert.NoError(t, store.db.QueryRow(selectStmt).Scan(
 				&actual.Name,
 				&actual.PackageType,
@@ -141,4 +139,12 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
 			assert.Equal(t, p.Attributes, actual.Attributes)
 		})
 	}
+}
+
+// HELPER FUNCTIONS
+
+func truncate(t *testing.T, db *sql.DB, orgID int, table string) {
+	query := fmt.Sprintf("TRUNCATE TABLE \"%d\".%s CASCADE", orgID, table)
+	_, err := db.Exec(query)
+	assert.NoError(t, err)
 }
