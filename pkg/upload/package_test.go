@@ -9,13 +9,6 @@ import (
 // TestPackage is main testing function that sets up tests and runs sub-tests.
 func TestPackage(t *testing.T) {
 	// <setup code>
-	s := ManifestSession{
-		FileTableName: "",
-		TableName:     "",
-		Client:        nil,
-		SNSClient:     nil,
-		SNSTopic:      "",
-	}
 
 	files := []manifestFile.FileDTO{
 		{
@@ -72,7 +65,7 @@ func TestPackage(t *testing.T) {
 			FileType:       "",
 		},
 	}
-	processedFiles := s.PackageTypeResolver(files)
+	processedFiles := PackageTypeResolver(files)
 
 	t.Run("BasicExtensions", func(t *testing.T) {
 		testBasicExtensions(t, processedFiles)
