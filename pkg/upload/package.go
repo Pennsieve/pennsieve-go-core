@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (s ManifestSession) PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
+func PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
 
 	for i, f := range items {
 

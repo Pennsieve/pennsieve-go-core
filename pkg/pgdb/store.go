@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
 )
 
 // SQLStore provides the Queries interface and a db instance.
@@ -37,23 +36,4 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) erro
 	}
 
 	return tx.Commit()
-}
-
-// ImportFiles creates rows for uploaded files in Packages and Files tables as a transaction
-func (store *SQLStore) ImportFiles(ctx context.Context, records []models.PackageParams) ([]models.Package, error) {
-	var result []models.Package
-
-	err := store.execTx(ctx, func(q *Queries) error {
-		// TODO: add packages
-		//q.AddFiles()
-		//
-		//q.AddPackages()
-		//
-		//q.db.QueryContext()
-
-		// TODO: add files
-		return nil
-	})
-
-	return result, err
 }

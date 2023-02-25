@@ -13,10 +13,18 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
+	"sync"
 	"time"
 )
 
 // PUBLIC METHODS
+
+type fileWalk chan manifestFile.FileDTO
+
+var syncWG sync.WaitGroup
+
+const batchSize = 25 // maximum batch size for batchPut action on dynamodb
+const nrWorkers = 2  // preliminary profiling shows that more workers don't improve efficiency for up to 1000 files
 
 // SyncFiles adds or updates files in the manifest file table
 func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId string, fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
@@ -341,7 +349,127 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 	return items, result.LastEvaluatedKey, nil
 }
 
+// AddFiles manages the workers and defines the go routines to add files to upload db.
+func (q *Queries) AddFiles(manifestId string, items []manifestFile.FileDTO, forceStatus *manifestFile.Status, fileNameTable string) *manifest.AddFilesStats {
+
+	// Populate DynamoDB with concurrent workers.
+	walker := make(fileWalk, batchSize)
+	result := make(chan manifest.AddFilesStats, nrWorkers)
+
+	// List crawler
+	go func() {
+		// Gather the files to upload by walking the path recursively
+		defer func() {
+			close(walker)
+		}()
+		log.WithFields(
+			log.Fields{
+				"manifest_id": manifestId,
+			},
+		).Debug(fmt.Sprintf("Adding %d number of items from upload.", len(items)))
+
+		for _, f := range items {
+			walker <- f
+		}
+	}()
+
+	// Initiate a set of upload sync workers as go-routines
+	for w := 1; w <= nrWorkers; w++ {
+		w2 := int32(w)
+		syncWG.Add(1)
+		log.Debug("starting worker:", w2)
+
+		go func() {
+			stats, _ := q.createOrUpdateFile(w2, walker, manifestId, forceStatus, fileNameTable)
+			result <- *stats
+			defer func() {
+				log.Debug("Closing Worker: ", w2)
+				syncWG.Done()
+			}()
+		}()
+	}
+
+	syncWG.Wait()
+	close(result)
+
+	resp := manifest.AddFilesStats{}
+	for r := range result {
+		resp.NrFilesUpdated += r.NrFilesUpdated
+		resp.NrFilesRemoved += r.NrFilesRemoved
+		resp.FileStatus = append(resp.FileStatus, r.FileStatus...)
+		resp.FailedFiles = append(resp.FailedFiles, r.FailedFiles...)
+	}
+
+	return &resp
+
+}
+
 // PRIVATE METHODS
+func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manifestId string, file *manifestFile.FileDTO) (manifestFile.Status, error) {
+	// Get current status in db if exist
+	getItemInput := &dynamodb.GetItemInput{
+		Key: map[string]types.AttributeValue{
+			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
+			"UploadId":   &types.AttributeValueMemberS{Value: file.UploadID},
+		},
+		TableName: aws.String(tableName),
+	}
+
+	result, err := q.db.GetItem(context.Background(), getItemInput)
+	if err != nil {
+		log.Error("Error getting item from dynamodb")
+	}
+
+	var pItem models.ManifestFileTable
+	if len(result.Item) > 0 {
+		err = attributevalue.UnmarshalMap(result.Item, &pItem)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+
+		var m manifestFile.Status
+		return m.ManifestFileStatusMap(pItem.Status), nil
+	}
+
+	return manifestFile.Unknown, nil
+}
+
+// createOrUpdateFile is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
+func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, fileTableName string) (*manifest.AddFilesStats, error) {
+
+	//store := dynamodb.NewDynamoStore(s.Client)
+	ctx := context.Background()
+
+	response := manifest.AddFilesStats{}
+
+	// Create file slice of size "batchSize" or smaller if end of list.
+	var fileSlice []manifestFile.FileDTO = nil
+	for record := range files {
+		fileSlice = append(fileSlice, record)
+
+		// When the number of items in fileSize matches the batchSize --> make call to update dynamodb
+		if len(fileSlice) == batchSize {
+			stats, _ := q.SyncFiles(ctx, fileTableName, manifestId, fileSlice, forceStatus)
+			fileSlice = nil
+
+			response.NrFilesUpdated += stats.NrFilesUpdated
+			response.NrFilesRemoved += stats.NrFilesRemoved
+			response.FailedFiles = append(response.FailedFiles, stats.FailedFiles...)
+			response.FileStatus = append(response.FileStatus, stats.FileStatus...)
+		}
+	}
+
+	// Add final partially filled fileSlice to database
+	if fileSlice != nil {
+		stats, _ := q.SyncFiles(ctx, fileTableName, manifestId, fileSlice, forceStatus)
+		response.NrFilesUpdated += stats.NrFilesUpdated
+		response.NrFilesRemoved += stats.NrFilesRemoved
+		response.FailedFiles = append(response.FailedFiles, stats.FailedFiles...)
+		response.FileStatus = append(response.FileStatus, stats.FileStatus...)
+	}
+
+	return &response, nil
+}
 
 // getAction returns the writeRequests for a given fileDTO and current status
 func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status) (*types.WriteRequest, manifestFile.Status, error) {
@@ -570,35 +698,6 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 	).Error("Unhandled case in getAction for file.")
 	return nil, manifestFile.Unknown, errors.New("unhandled case in getAction")
 
-}
-
-func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manifestId string, file *manifestFile.FileDTO) (manifestFile.Status, error) {
-	// Get current status in db if exist
-	getItemInput := &dynamodb.GetItemInput{
-		Key: map[string]types.AttributeValue{
-			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
-			"UploadId":   &types.AttributeValueMemberS{Value: file.UploadID},
-		},
-		TableName: aws.String(tableName),
-	}
-
-	result, err := q.db.GetItem(context.Background(), getItemInput)
-	if err != nil {
-		log.Error("Error getting item from dynamodb")
-	}
-
-	var pItem models.ManifestFileTable
-	if len(result.Item) > 0 {
-		err = attributevalue.UnmarshalMap(result.Item, &pItem)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-
-		var m manifestFile.Status
-		return m.ManifestFileStatusMap(pItem.Status), nil
-	}
-
-	return manifestFile.Unknown, nil
 }
 
 // RemoveFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dynamodb
