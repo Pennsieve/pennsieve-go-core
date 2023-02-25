@@ -22,6 +22,9 @@ type PackageAttributes []PackageAttribute
 // a non-pointer receiver and Scan() has a pointer receiver.
 
 func (a PackageAttributes) Value() (driver.Value, error) {
+	if a == nil {
+		return json.Marshal(PackageAttributes{})
+	}
 	return json.Marshal(a)
 }
 

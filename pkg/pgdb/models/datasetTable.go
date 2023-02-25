@@ -2,10 +2,32 @@ package models
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"time"
 )
+
+type Tags []string
+
+func (t Tags) Value() (driver.Value, error) {
+	return (*pq.StringArray)(&t).Value()
+}
+
+func (t *Tags) Scan(src any) error {
+	return (*pq.StringArray)(t).Scan(src)
+}
+
+type Contributors []string
+
+func (c Contributors) Value() (driver.Value, error) {
+	return (*pq.StringArray)(&c).Value()
+}
+
+func (c *Contributors) Scan(src any) error {
+	return (*pq.StringArray)(c).Scan(src)
+}
 
 type Dataset struct {
 	Id                           int64          `json:"id"`
@@ -20,9 +42,9 @@ type Dataset struct {
 	Role                         sql.NullString `json:"role"`
 	Status                       string         `json:"status"`
 	AutomaticallyProcessPackages bool           `json:"automatically_process_packages"`
-	Licence                      sql.NullString `json:"licence"`
-	Tags                         []string       `json:"tags"`
-	Contributors                 []string       `json:"contributors"`
+	License                      sql.NullString `json:"license"`
+	Tags                         Tags           `json:"tags"`
+	Contributors                 Contributors   `json:"contributors"`
 	BannerId                     uuid.UUID      `json:"banner_id"`
 	ReadmeId                     uuid.UUID      `json:"readme_id"`
 	StatusId                     int32          `json:"status_id"`

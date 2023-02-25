@@ -28,7 +28,6 @@ func TestPackageTable(t *testing.T) {
 }
 
 // TESTS
-
 func testAddPackage(t *testing.T, store *SQLStore) {
 
 	defer truncate(t, store.db, orgId, "packages")
@@ -73,29 +72,31 @@ func testAddPackage(t *testing.T, store *SQLStore) {
 }
 
 func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
-	tests := map[string]packageInfo.PackageAttributes{
-		"non-empty": {
-			{Key: "subtype",
-				Fixed:    false,
-				Value:    "Image",
-				Hidden:   true,
-				Category: "Pennsieve",
-				DataType: "string"},
-			{Key: "icon",
-				Fixed:    false,
-				Value:    "Microscope",
-				Hidden:   true,
-				Category: "Pennsieve",
-				DataType: "string"}},
-		"nil":   nil,
-		"empty": {},
+	emptyAttrs := packageInfo.PackageAttributes{}
+	nonEmptyAttrs := packageInfo.PackageAttributes{
+		{Key: "subtype",
+			Fixed:    false,
+			Value:    "Image",
+			Hidden:   true,
+			Category: "Pennsieve",
+			DataType: "string"},
+		{Key: "icon",
+			Fixed:    false,
+			Value:    "Microscope",
+			Hidden:   true,
+			Category: "Pennsieve",
+			DataType: "string"}}
+	tests := map[string]struct {
+		input    packageInfo.PackageAttributes
+		expected packageInfo.PackageAttributes
+	}{
+		"non-empty": {nonEmptyAttrs, nonEmptyAttrs},
+		// If an insert contains a nil PackageAttributes we want to put empty json array in DB
+		"nil":   {nil, emptyAttrs},
+		"empty": {emptyAttrs, emptyAttrs},
 	}
 
-	//db, err := domain.ConnectENVWithOrg(orgId)
-	//
-	//assert.NoError(t, err)
-	//defer db.Close()
-	for name, expectedAttributes := range tests {
+	for name, data := range tests {
 		t.Run(name, func(t *testing.T) {
 			p := models.Package{
 				Name:         "image.jpg",
@@ -104,7 +105,7 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
 				NodeId:       "N:package:1234",
 				DatasetId:    1,
 				OwnerId:      1,
-				Attributes:   expectedAttributes}
+				Attributes:   data.input}
 			insert := fmt.Sprintf(
 				"INSERT INTO \"%d\".packages (name, type, state, node_id, dataset_id, owner_id, attributes) VALUES ($1, $2, $3, $4, $5, $6, $7)",
 				orgId)
@@ -137,13 +138,12 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
 			assert.Equal(t, p.NodeId, actual.NodeId)
 			assert.Equal(t, p.DatasetId, actual.DatasetId)
 			assert.Equal(t, p.OwnerId, actual.OwnerId)
-			assert.Equal(t, p.Attributes, actual.Attributes)
+			assert.Equal(t, data.expected, actual.Attributes)
 		})
 	}
 }
 
 // HELPER FUNCTIONS
-
 func truncate(t *testing.T, db *sql.DB, orgID int, table string) {
 	query := fmt.Sprintf("TRUNCATE TABLE \"%d\".%s CASCADE", orgID, table)
 	_, err := db.Exec(query)
