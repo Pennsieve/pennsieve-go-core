@@ -16,7 +16,7 @@ services:
     env_file:
       - dockertest.env
     environment:
-      - DYNAMODB_URL=http://dydb:8000
+      - DYNAMODB_URL=http://dynamodb:8000
       - POSTGRES_HOST=pennsievedb
     volumes:
       - $PWD:/go/src/github.com/pennsieve/pennsieve-go-core
@@ -34,7 +34,7 @@ services:
     env_file:
       - dockertest.env
     environment:
-      - DYNAMODB_URL=http://dydb-ci:8000
+      - DYNAMODB_URL=http://dynamodb-ci:8000
       - POSTGRES_HOST=pennsievedb-ci
     volumes:
       - $PWD:/go/src/github.com/pennsieve/pennsieve-go-core
