@@ -13,7 +13,7 @@ var orgId int
 func TestMain(m *testing.M) {
 	var err error
 
-	orgId = 2
+	orgId = 1
 	testDB, err = ConnectENVWithOrg(orgId)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
