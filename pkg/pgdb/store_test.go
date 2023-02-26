@@ -7,17 +7,22 @@ import (
 	"testing"
 )
 
-var testDB *sql.DB
-var orgId int
+var testDB map[int]*sql.DB
 
 func TestMain(m *testing.M) {
 	var err error
 
-	orgId = 1
-	testDB, err = ConnectENVWithOrg(orgId)
+	db, err := ConnectENVWithOrg(1)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
+	testDB[1] = db
+
+	db, err = ConnectENVWithOrg(3)
+	if err != nil {
+		log.Fatal("cannot connect to db:", err)
+	}
+	testDB[3] = db
 
 	os.Exit(m.Run())
 }

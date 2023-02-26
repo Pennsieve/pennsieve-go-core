@@ -10,10 +10,12 @@ import (
 
 //goland:noinspection SqlResolve
 func TestDatasetsInsertSelect(t *testing.T) {
-	defer truncate(t, testDB, orgId, "datasets")
+	orgId := 1
+	db := testDB[orgId]
+	defer truncate(t, testDB[orgId], orgId, "datasets")
 
 	input := models.Dataset{
-		Id:           1,
+		Id:           1000,
 		Name:         "Test Dataset",
 		State:        "READY",
 		Description:  sql.NullString{},
@@ -23,17 +25,17 @@ func TestDatasetsInsertSelect(t *testing.T) {
 		Contributors: models.Contributors{},
 		StatusId:     int32(1),
 	}
-	_, err := testDB.Exec("INSERT INTO datasets (id, name, state, description, node_id, role, tags, contributors, status_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", input.Id, input.Name, input.State, input.Description, input.NodeId, input.Role, input.Tags, input.Contributors, input.StatusId)
+	_, err := db.Exec("INSERT INTO datasets (id, name, state, description, node_id, role, tags, contributors, status_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", input.Id, input.Name, input.State, input.Description, input.NodeId, input.Role, input.Tags, input.Contributors, input.StatusId)
 
 	if assert.NoError(t, err) {
 
 		countStmt := fmt.Sprintf("SELECT COUNT(*) FROM datasets")
 		var count int
-		assert.NoError(t, testDB.QueryRow(countStmt).Scan(&count))
+		assert.NoError(t, db.QueryRow(countStmt).Scan(&count))
 		assert.Equal(t, 1, count)
 
 		var actual models.Dataset
-		err = testDB.QueryRow("SELECT id, name, state, description, node_id, role, tags, contributors, status_id FROM datasets").Scan(
+		err = db.QueryRow("SELECT id, name, state, description, node_id, role, tags, contributors, status_id FROM datasets").Scan(
 			&actual.Id,
 			&actual.Name,
 			&actual.State,

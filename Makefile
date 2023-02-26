@@ -29,6 +29,6 @@ start-dynamodb: docker-clean
 docker-clean:
 	docker-compose -f docker-compose.test.yml down
 
-# Remove dynamodb database
+# Remove dydb database
 clean: docker-clean
 	rm -rf test-dynamodb-data

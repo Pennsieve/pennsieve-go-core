@@ -1,4 +1,4 @@
-package dynamodb
+package dydb
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamodb/models"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dydb/models"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
@@ -224,7 +224,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// populateManifestTable populates the test dynamodb table with entries for testing
+// populateManifestTable populates the test dydb table with entries for testing
 func populateManifestTable() {
 
 	ctx := context.Background()

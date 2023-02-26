@@ -1,4 +1,4 @@
-package dynamodb
+package dydb
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/pennsieve/pennsieve-go-core/pkg/dynamodb/models"
+	"github.com/pennsieve/pennsieve-go-core/pkg/dydb/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
@@ -23,12 +23,12 @@ type fileWalk chan manifestFile.FileDTO
 
 var syncWG sync.WaitGroup
 
-const batchSize = 25 // maximum batch size for batchPut action on dynamodb
+const batchSize = 25 // maximum batch size for batchPut action on dydb
 const nrWorkers = 2  // preliminary profiling shows that more workers don't improve efficiency for up to 1000 files
 
 // SyncFiles adds or updates files in the manifest file table
 func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId string, fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
-	// Create Batch Put request for the fileslice and update dynamodb with one call
+	// Create Batch Put request for the fileslice and update dydb with one call
 	var writeRequests []types.WriteRequest
 
 	var syncResponses []manifestFile.FileStatusDTO
@@ -37,7 +37,7 @@ func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId st
 	var nrFilesUpdated int
 	var nrFilesRemoved int
 	for _, file := range fileSlice {
-		// Get existing status for file in dynamodb, Unknown if does not exist
+		// Get existing status for file in dydb, Unknown if does not exist
 		var request *types.WriteRequest
 		var setStatus manifestFile.Status
 		if forceStatus == nil {
@@ -102,7 +102,7 @@ func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId st
 			setStatus = *forceStatus
 		}
 
-		// If action requires dynamodb actionm add request to array of requests
+		// If action requires dydb actionm add request to array of requests
 		if request != nil {
 			writeRequests = append(writeRequests, *request)
 		}
@@ -204,7 +204,7 @@ func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId st
 	return &response, err
 }
 
-// UpdateFileTableStatus updates the status of the file in the file-table dynamodb
+// UpdateFileTableStatus updates the status of the file in the file-table dydb
 func (q *Queries) UpdateFileTableStatus(ctx context.Context, tableName string, manifestId string, uploadId string, status manifestFile.Status, msg string) error {
 
 	_, err := q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
@@ -317,7 +317,7 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 			}
 		}
 	case false:
-		// Query from main dynamodb
+		// Query from main dydb
 		queryInput = dynamodb.QueryInput{
 			TableName:              aws.String(tableName),
 			ExclusiveStartKey:      startKey,
@@ -417,7 +417,7 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 
 	result, err := q.db.GetItem(context.Background(), getItemInput)
 	if err != nil {
-		log.Error("Error getting item from dynamodb")
+		log.Error("Error getting item from dydb")
 	}
 
 	var pItem models.ManifestFileTable
@@ -437,7 +437,7 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 // createOrUpdateFile is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
 func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, fileTableName string) (*manifest.AddFilesStats, error) {
 
-	//store := dynamodb.NewDynamoStore(s.Client)
+	//store := dydb.NewDynamoStore(s.Client)
 	ctx := context.Background()
 
 	response := manifest.AddFilesStats{}
@@ -447,7 +447,7 @@ func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId 
 	for record := range files {
 		fileSlice = append(fileSlice, record)
 
-		// When the number of items in fileSize matches the batchSize --> make call to update dynamodb
+		// When the number of items in fileSize matches the batchSize --> make call to update dydb
 		if len(fileSlice) == batchSize {
 			stats, _ := q.SyncFiles(ctx, fileTableName, manifestId, fileSlice, forceStatus)
 			fileSlice = nil
@@ -491,10 +491,10 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 
 	// Switch based on provided status from client
 	// file --> provided as part of request
-	// curStatus --> current status in dynamodb
+	// curStatus --> current status in dydb
 	switch file.Status {
 	case manifestFile.Removed:
-		// File is removed after being synced --> remove from dynamodb if not uploaded already.
+		// File is removed after being synced --> remove from dydb if not uploaded already.
 		// If uploaded --> return current status
 
 		switch curStatus {
@@ -528,7 +528,7 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 
 			return nil, curStatus, nil
 		default:
-			// If server synced or failed --> remove from dynamodb
+			// If server synced or failed --> remove from dydb
 			data, err := attributevalue.MarshalMap(models.ManifestFilePrimaryKey{
 				ManifestId: manifestId,
 				UploadId:   file.UploadID,
@@ -578,7 +578,7 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 
 			return &request, manifestFile.Verified, nil
 		case manifestFile.Registered, manifestFile.Failed, manifestFile.Unknown:
-			// server is synced, failed, unknown --> add/update the entry in dynamodb
+			// server is synced, failed, unknown --> add/update the entry in dydb
 			item.Status = manifestFile.Registered.String()
 			item.InProgress = "x"
 
@@ -700,7 +700,7 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 
 }
 
-// RemoveFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dynamodb
+// RemoveFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dydb
 func removeFailedFilesFromResponse(failedRequests []string, syncResponses []manifestFile.FileStatusDTO) []manifestFile.FileStatusDTO {
 
 	var newResponses []manifestFile.FileStatusDTO

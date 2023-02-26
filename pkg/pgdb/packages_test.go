@@ -15,20 +15,21 @@ import (
 // TestPackageTable is the main Test Suite function for Packages.
 func TestPackageTable(t *testing.T) {
 	for scenario, fn := range map[string]func(
-		tt *testing.T, store *SQLStore,
+		tt *testing.T, store *SQLStore, orgId int,
 	){
 		"Add package":                    testAddPackage,
 		"Test package attributes values": testPackageAttributeValueAndScan,
 	} {
 		t.Run(scenario, func(t *testing.T) {
-			store := NewSQLStore(testDB)
-			fn(t, store)
+			orgId := 1
+			store := NewSQLStore(testDB[orgId])
+			fn(t, store, orgId)
 		})
 	}
 }
 
 // TESTS
-func testAddPackage(t *testing.T, store *SQLStore) {
+func testAddPackage(t *testing.T, store *SQLStore, orgId int) {
 
 	defer truncate(t, store.db, orgId, "packages")
 
@@ -71,7 +72,7 @@ func testAddPackage(t *testing.T, store *SQLStore) {
 
 }
 
-func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore) {
+func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore, orgId int) {
 	emptyAttrs := packageInfo.PackageAttributes{}
 	nonEmptyAttrs := packageInfo.PackageAttributes{
 		{Key: "subtype",
