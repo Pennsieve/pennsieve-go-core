@@ -10,7 +10,7 @@ import (
 
 //goland:noinspection SqlResolve
 func TestDatasetsInsertSelect(t *testing.T) {
-	orgId := 1
+	orgId := 3
 	db := testDB[orgId]
 	defer truncate(t, testDB[orgId], orgId, "datasets")
 

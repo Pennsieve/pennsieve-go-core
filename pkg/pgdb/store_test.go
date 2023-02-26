@@ -14,17 +14,17 @@ func TestMain(m *testing.M) {
 
 	testDB = make(map[int]*sql.DB)
 
-	db, err := ConnectENVWithOrg(1)
+	db1, err := ConnectENVWithOrg(1)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
-	testDB[1] = db
+	testDB[1] = db1
 
-	db, err = ConnectENVWithOrg(3)
+	db2, err := ConnectENVWithOrg(3)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
-	testDB[3] = db
+	testDB[3] = db2
 
 	os.Exit(m.Run())
 }
