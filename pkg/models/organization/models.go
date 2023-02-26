@@ -2,14 +2,14 @@ package organization
 
 import (
 	"fmt"
-	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 )
 
 // Claim combines the role of the user in the org, and the features in the organization.
 type Claim struct {
-	Role            models.DbPermission
+	Role            pgdb.DbPermission
 	IntId           int64
-	EnabledFeatures []models.FeatureFlags
+	EnabledFeatures []pgdb.FeatureFlags
 }
 
 func (c Claim) String() string {

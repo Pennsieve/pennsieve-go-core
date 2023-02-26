@@ -4,8 +4,8 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/permissions"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
-	"github.com/pennsieve/pennsieve-go-core/pkg/pgdb/models"
 )
 
 // Claims is an object containing claims and user info
@@ -23,7 +23,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		orgClaims := val.(map[string]interface{})
 		orgRole := int64(orgClaims["Role"].(float64))
 		orgClaim = organization.Claim{
-			Role:            models.DbPermission(orgRole),
+			Role:            pgdb.DbPermission(orgRole),
 			IntId:           int64(orgClaims["IntId"].(float64)),
 			EnabledFeatures: nil,
 		}
