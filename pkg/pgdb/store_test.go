@@ -12,6 +12,8 @@ var testDB map[int]*sql.DB
 func TestMain(m *testing.M) {
 	var err error
 
+	testDB = make(map[int]*sql.DB)
+
 	db, err := ConnectENVWithOrg(1)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
