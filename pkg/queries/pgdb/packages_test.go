@@ -14,26 +14,12 @@ import (
 
 // TestPackageTable is the main Test Suite function for Packages.
 func TestPackageTable(t *testing.T) {
-	// Add unique constraint
-	store := NewSQLStore(testDB[1])
-	nullParentStmt, err := store.db.Prepare("create unique index packages_name_dataset_id__parent_id_null_idx on packages (name,dataset_id,\"type\") where parent_id is null;")
-	defer nullParentStmt.Close()
-	_, err = nullParentStmt.Query()
-
-	nonNullParentStmt, err := store.db.Prepare("create unique index packages_name_dataset_id_parent_id__parent_id_not_null_idx on packages (name,dataset_id,\"type\",parent_id) where parent_id is NOT null;")
-	defer nonNullParentStmt.Close()
-	_, err = nonNullParentStmt.Query()
-
-	if err != nil {
-		panic(err)
-	}
-	defer store.db.Close()
-
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Add package":                    testAddPackage,
-		"Test package attributes values": testPackageAttributeValueAndScan,
+		"Add package":                       testAddPackage,
+		"Test package attributes values":    testPackageAttributeValueAndScan,
+		"Test package with duplicate names": testFailDuplicateNames,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -80,7 +66,6 @@ func testAddPackage(t *testing.T, store *SQLStore, orgId int) {
 			Attributes:   attr,
 		},
 	}
-
 	results, err := store.AddPackages(context.Background(), records)
 	assert.NoError(t, err)
 	assert.Equal(t, records[0].Name, results[0].Name)
@@ -157,6 +142,64 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore, orgId int) 
 			assert.Equal(t, data.expected, actual.Attributes)
 		})
 	}
+}
+
+func testFailDuplicateNames(t *testing.T, store *SQLStore, orgId int) {
+	pkgAttr1 := packageInfo.PackageAttribute{
+		Key:      "subtype",
+		Fixed:    false,
+		Value:    "Image",
+		Hidden:   false,
+		Category: "Pennsieve",
+		DataType: "string",
+	}
+	pkgAttr2 := packageInfo.PackageAttribute{
+		Key:      "subtype",
+		Fixed:    false,
+		Value:    "Image",
+		Hidden:   false,
+		Category: "Pennsieve",
+		DataType: "string",
+	}
+
+	records := []pgdb.PackageParams{
+		{
+			Name:         "folder",
+			PackageType:  packageType.Collection,
+			PackageState: packageState.Uploaded,
+			NodeId:       "N:package:12345678-2222-2222-2222-123456789ABC",
+			ParentId:     -1,
+			DatasetId:    1,
+			OwnerId:      1,
+			Size:         123456789,
+			ImportId: sql.NullString{
+				String: "12345678-2222-2222-2222-123456789ABC",
+				Valid:  true,
+			},
+			Attributes: []packageInfo.PackageAttribute{pkgAttr1, pkgAttr2},
+		},
+	}
+	initialResult, err1 := store.AddPackages(context.Background(), records)
+	fmt.Println(initialResult)
+
+	records[0].ImportId = sql.NullString{
+		String: "",
+		Valid:  false,
+	}
+	originalNodeID := records[0].NodeId
+	records[0].NodeId = "N:package:DUPLICATE-1111-1111-1111-123456789ABC"
+
+	duplicatedResult, err2 := store.AddPackages(context.Background(), records)
+	fmt.Println(duplicatedResult)
+
+	assert.Equal(t, err1, nil)
+	assert.Equal(t, err2, nil)
+
+	assert.Equal(t, len(initialResult), 1)
+	assert.Equal(t, len(duplicatedResult), 1)
+
+	// Check that we get the original node id back
+	assert.Equal(t, duplicatedResult[0].NodeId, originalNodeID)
 }
 
 // HELPER FUNCTIONS
