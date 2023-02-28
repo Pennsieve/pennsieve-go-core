@@ -34,7 +34,7 @@ func (q *Queries) CreateManifest(ctx context.Context, manifestTableName string, 
 		TableName: aws.String("manifestTableName"),
 	}
 	result, _ := q.db.GetItem(ctx, &getRequest)
-	if result.Item != nil {
+	if result != nil {
 		return errors.New("manifest with provided ID already exists")
 	}
 
