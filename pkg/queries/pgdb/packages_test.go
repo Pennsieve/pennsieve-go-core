@@ -14,6 +14,21 @@ import (
 
 // TestPackageTable is the main Test Suite function for Packages.
 func TestPackageTable(t *testing.T) {
+	// Add unique constraint
+	store := NewSQLStore(testDB[1])
+	nullParentStmt, err := store.db.Prepare("create unique index packages_name_dataset_id__parent_id_null_idx on packages (name,dataset_id,\"type\") where parent_id is null;")
+	defer nullParentStmt.Close()
+	_, err = nullParentStmt.Query()
+
+	nonNullParentStmt, err := store.db.Prepare("create unique index packages_name_dataset_id_parent_id__parent_id_not_null_idx on packages (name,dataset_id,\"type\",parent_id) where parent_id is NOT null;")
+	defer nonNullParentStmt.Close()
+	_, err = nonNullParentStmt.Query()
+
+	if err != nil {
+		panic(err)
+	}
+	defer store.db.Close()
+
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
