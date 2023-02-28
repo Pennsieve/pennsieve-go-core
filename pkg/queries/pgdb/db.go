@@ -39,6 +39,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	}
 }
 
+func (q *Queries) WitOrg(orgId int) error {
+	err := setOrgSearchPath(q.db, orgId)
+	return err
+}
+
 // ConnectRDS returns a DB instance.
 // The Lambda function leverages IAM roles to gain access to the DB Proxy.
 // The function does NOT set the search_path to the organization schema.
@@ -137,16 +142,13 @@ func connect(dbHost string, dbPort string, dbUser string, authenticationToken st
 	return db, err
 }
 
-func setOrgSearchPath(db *sql.DB, orgId int) error {
+func setOrgSearchPath(db DBTX, orgId int) error {
 
 	// Set Search Path to organization
-	_, err := db.Exec(fmt.Sprintf("SET search_path = \"%d\";", orgId))
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, fmt.Sprintf("SET search_path = \"%d\";", orgId))
 	if err != nil {
 		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
-		err := db.Close()
-		if err != nil {
-			return err
-		}
 		return err
 	}
 
