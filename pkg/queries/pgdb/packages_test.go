@@ -19,6 +19,7 @@ func TestPackageTable(t *testing.T) {
 	){
 		"Add package":                    testAddPackage,
 		"Test package attributes values": testPackageAttributeValueAndScan,
+		"Test duplicate file handling":   checkNameExpansion,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -142,6 +143,35 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore, orgId int) 
 			assert.Equal(t, data.expected, actual.Attributes)
 		})
 	}
+}
+
+func checkNameExpansion(t *testing.T, _ *SQLStore, _ int) {
+	existingNames := []string{
+		"file1.doc",
+		"file2.doc",
+		"file3.doc",
+		"file2 (2).doc",
+	}
+
+	// Check new file
+	currentPackage := pgdb.PackageParams{
+		Name: "new_file.doc",
+	}
+	checkUpdateName(&currentPackage, 1, "", existingNames)
+	assert.Equal(t, "new_file.doc", currentPackage.Name, "Non existing file should remain unchanged")
+
+	currentPackage = pgdb.PackageParams{
+		Name: "file1.doc",
+	}
+	checkUpdateName(&currentPackage, 1, "", existingNames)
+	assert.Equal(t, "file1 (2).doc", currentPackage.Name, "File with existing name should be appended with (2)")
+
+	currentPackage = pgdb.PackageParams{
+		Name: "file2.doc",
+	}
+	checkUpdateName(&currentPackage, 1, "", existingNames)
+	assert.Equal(t, "file2 (3).doc", currentPackage.Name, "File with existing appended name should be have index increased (3)")
+
 }
 
 // HELPER FUNCTIONS
