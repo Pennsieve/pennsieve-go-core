@@ -190,6 +190,7 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 }
 
 func (q *Queries) GetPackageChildren(ctx context.Context, parent *pgdb.Package, datasetId int, onlyFolders bool) ([]pgdb.Package, error) {
+
 	folderFilter := ""
 	if onlyFolders {
 		folderFilter = fmt.Sprintf("AND type = '%s'", packageType.Collection.String())
@@ -200,13 +201,14 @@ func (q *Queries) GetPackageChildren(ctx context.Context, parent *pgdb.Package, 
 	queryRows := "id, name, type, state, node_id, parent_id, " +
 		"dataset_id, owner_id, size, created_at, updated_at"
 
-	queryStr := fmt.Sprintf("SELECT %s FROM packages WHERE dataset_id = %d AND parent_id = %d AND state != '%s' %s;",
-		queryRows, datasetId, parent.Id, packageState.Deleting.String(), folderFilter)
-
 	// If parent is empty => return children of root of dataset.
-	if parent.NodeId == "" {
+	var queryStr string
+	if parent == nil {
 		queryStr = fmt.Sprintf("SELECT %s FROM packages WHERE dataset_id = %d AND parent_id IS NULL AND state != '%s' %s;",
 			queryRows, datasetId, packageState.Deleting.String(), folderFilter)
+	} else {
+		queryStr = fmt.Sprintf("SELECT %s FROM packages WHERE dataset_id = %d AND parent_id = %d AND state != '%s' %s;",
+			queryRows, datasetId, parent.Id, packageState.Deleting.String(), folderFilter)
 	}
 
 	rows, err := q.db.QueryContext(ctx, queryStr)

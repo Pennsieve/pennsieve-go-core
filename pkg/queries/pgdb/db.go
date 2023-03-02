@@ -39,9 +39,22 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	}
 }
 
-func (q *Queries) WitOrg(orgId int) error {
-	err := setOrgSearchPath(q.db, orgId)
-	return err
+func (q *Queries) ShowSearchPath(loc string) {
+	var currentSchema string
+	rr := q.db.QueryRowContext(context.Background(), "show search_path")
+	rr.Scan(&currentSchema)
+	fmt.Printf("%s: Search Path: %v\n", loc, currentSchema)
+}
+
+func (q *Queries) WithOrg(orgId int) (*Queries, error) {
+	db, err := setOrgSearchPath(q.db, orgId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Queries{
+		db: db,
+	}, nil
 }
 
 // ConnectRDS returns a DB instance.
@@ -81,7 +94,7 @@ func ConnectRDSWithOrg(orgId int) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = setOrgSearchPath(db, orgId)
+	_, err = setOrgSearchPath(db, orgId)
 	return db, err
 }
 
@@ -117,7 +130,7 @@ func ConnectENVWithOrg(orgId int) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = setOrgSearchPath(db, orgId)
+	_, err = setOrgSearchPath(db, orgId)
 	return db, err
 }
 
@@ -142,15 +155,15 @@ func connect(dbHost string, dbPort string, dbUser string, authenticationToken st
 	return db, err
 }
 
-func setOrgSearchPath(db DBTX, orgId int) error {
+func setOrgSearchPath(db DBTX, orgId int) (DBTX, error) {
 
 	// Set Search Path to organization
 	ctx := context.Background()
 	_, err := db.ExecContext(ctx, fmt.Sprintf("SET search_path = \"%d\";", orgId))
 	if err != nil {
 		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
-		return err
+		return nil, err
 	}
 
-	return err
+	return db, err
 }
