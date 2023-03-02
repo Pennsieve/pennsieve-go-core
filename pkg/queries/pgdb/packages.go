@@ -16,7 +16,7 @@ import (
 
 func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams) ([]pgdb.Package, error) {
 	// Steps:
-	// 1. Checks current packages in folder and check if they have sugested name.
+	// 1. Checks current packages in folder and check if they have suggested name.
 	// 2. If package with name already exists, append (#) and check if that name exists recursively.
 	// 3. Insert packages
 	// 4. If package with provided packageId exists, don't create new one but return existing one.
