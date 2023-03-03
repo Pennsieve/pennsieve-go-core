@@ -9,9 +9,10 @@ func TestHandler(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		t *testing.T,
 	){
-		"sorts upload files by path":      testSortFiles,
-		"correctly maps files to folders": testFolderMapping,
-		"test ignore leading slash":       testRemoveLeadingTrailingSlash,
+		"sorts upload files by path":           testSortFiles,
+		"correctly maps files to folders":      testFolderMapping,
+		"test ignore leading slash":            testRemoveLeadingTrailingSlash,
+		"test folder mapping for nested files": testNestedStructure,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			fn(t)
@@ -202,5 +203,35 @@ func testRemoveLeadingTrailingSlash(t *testing.T) {
 	t.Log(folderMap)
 	// Number of folders
 	assert.Equal(t, 3, len(folderMap))
+
+}
+
+func testNestedStructure(t *testing.T) {
+
+	files := []UploadFile{
+		{Path: "protocol_1/protocol_2", Name: "Readme.md"},
+		{Path: "", Name: "manifest.xlsx"},
+		{Path: "protocol_1", Name: "manifest.xlsx"},
+		{Path: "protocol_1/protocol_2/protocol_3/protocol_4/protocol_5", Name: "manifest.xlsx"},
+		{Path: "protocol_1/protocol_2", Name: "manifest.xlsx"},
+		{Path: "protocol_1/protocol_2/protocol_3", Name: "manifest.xlsx"},
+		{Path: "protocol_1/protocol_2/protocol_3/protocol_4", Name: "Readme.md"},
+		{Path: "protocol_1/protocol_2/protocol_3/protocol_4", Name: "manifest.xlsx"},
+		{Path: "", Name: "Readme.md"},
+		{Path: "protocol_1", Name: "Readme.md"},
+		{Path: "protocol_1/protocol_2/protocol_3", Name: "Readme.md"},
+		{Path: "protocol_1/protocol_2/protocol_3/protocol_4/protocol_5", Name: "Readme.md"},
+	}
+
+	var u UploadFile
+	u.Sort(files)
+
+	uploadMap := u.GetUploadFolderMap(files, "")
+
+	assert.NotEmpty(t, uploadMap["protocol_1"].ParentNodeId)
+	assert.Equal(t, uploadMap["protocol_1"].NodeId, uploadMap["protocol_1/protocol_2"].ParentNodeId)
+	assert.Equal(t, uploadMap["protocol_1/protocol_2"].NodeId, uploadMap["protocol_1/protocol_2/protocol_3"].ParentNodeId)
+	assert.Equal(t, uploadMap["protocol_1/protocol_2/protocol_3"].NodeId, uploadMap["protocol_1/protocol_2/protocol_3/protocol_4"].ParentNodeId)
+	assert.Equal(t, uploadMap["protocol_1/protocol_2/protocol_3/protocol_4"].NodeId, uploadMap["protocol_1/protocol_2/protocol_3/protocol_4/protocol_5"].ParentNodeId)
 
 }

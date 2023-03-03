@@ -180,3 +180,28 @@ func truncate(t *testing.T, db *sql.DB, orgID int, table string) {
 	_, err := db.Exec(query)
 	assert.NoError(t, err)
 }
+
+//
+//func testNestedPackages(t *testing.T, db *sql.DB, orgID int, table string) {
+//
+//	ctx := context.Background()
+//
+//	records := []pgdb.PackageParams{
+//		{
+//			Name:         "",
+//			PackageType:  0,
+//			PackageState: 0,
+//			NodeId:       "",
+//			ParentId:     0,
+//			DatasetId:    0,
+//			OwnerId:      0,
+//			Size:         0,
+//			ImportId:     sql.NullString{},
+//			Attributes:   nil,
+//		},
+//
+//	}
+//	AddPackages(ctx context.Context, records []pgdb.PackageParams)
+//
+//
+//}
