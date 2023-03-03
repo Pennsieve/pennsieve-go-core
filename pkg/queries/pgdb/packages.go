@@ -250,6 +250,8 @@ func checkUpdateName(item *pgdb.PackageParams, index int, newName string, namesI
 		newName = item.Name
 	}
 
+	log.Debug(fmt.Sprintf("CHECKUPDATE: %s - %v", newName, namesInFolder))
+
 	for _, n := range namesInFolder {
 		if newName == n {
 			r := regexp.MustCompile(`(?P<FileName>[^\.]*)?\.?(?P<Extension>.*)`)
@@ -263,8 +265,12 @@ func checkUpdateName(item *pgdb.PackageParams, index int, newName string, namesI
 			updatedName := ""
 			if extension != "" {
 				updatedName = fmt.Sprintf("%s (%d).%s", name, index, extension)
+				log.Debug(fmt.Sprintf("CHECKUPDATE -Add index: %d - %s", index, updatedName))
+
 			} else {
 				updatedName = fmt.Sprintf("%s (%d)", name, index)
+				log.Debug(fmt.Sprintf("CHECKUPDATE -Add index: %d - %s", index, updatedName))
+
 			}
 
 			// Recursively call this function to check if updated name also exists.
@@ -275,4 +281,6 @@ func checkUpdateName(item *pgdb.PackageParams, index int, newName string, namesI
 
 	// Update name to new name
 	item.Name = newName
+	log.Debug(fmt.Sprintf("CHECKUPDATE - NEWNAME: %s", newName))
+
 }
