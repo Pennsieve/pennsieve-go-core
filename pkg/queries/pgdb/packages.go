@@ -89,9 +89,14 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 
 		// Update names if suggested name exists for files
 		// Don't do anything for folders as conflict will return the existing folder.
-		for i, _ := range records {
+		log.Debug(fmt.Sprintf("Parent ID: %d", key))
+		log.Debug(fmt.Sprintf("Parent object: %v", value))
+		log.Debug(fmt.Sprintf("AllNames: %v", allNames))
+
+		for i, r := range records {
 			if records[i].PackageType != packageType.Collection {
 
+				log.Debug(fmt.Sprintf("Checking Name collision for: %s", r.Name))
 				// TODO: Check Package Merge
 				// If we need to merge --> set flag in record so we don't add package and only add file to the existing package.
 
@@ -146,6 +151,8 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 		log.Fatalln("ERROR: ", err)
 	}
 	defer stmt.Close()
+
+	log.Debug(fmt.Sprintf("Insert statement: %v", stmt))
 
 	// format all vals at once
 	var allInsertedPackages []pgdb.Package
