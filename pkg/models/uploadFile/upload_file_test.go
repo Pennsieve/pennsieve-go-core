@@ -228,7 +228,7 @@ func testNestedStructure(t *testing.T) {
 
 	uploadMap := u.GetUploadFolderMap(files, "")
 
-	assert.NotEmpty(t, uploadMap["protocol_1"].ParentNodeId)
+	assert.Empty(t, uploadMap["protocol_1"].ParentNodeId)
 	assert.Equal(t, uploadMap["protocol_1"].NodeId, uploadMap["protocol_1/protocol_2"].ParentNodeId)
 	assert.Equal(t, uploadMap["protocol_1/protocol_2"].NodeId, uploadMap["protocol_1/protocol_2/protocol_3"].ParentNodeId)
 	assert.Equal(t, uploadMap["protocol_1/protocol_2/protocol_3"].NodeId, uploadMap["protocol_1/protocol_2/protocol_3/protocol_4"].ParentNodeId)

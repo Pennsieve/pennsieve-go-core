@@ -3,6 +3,7 @@ package pgdb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
@@ -13,6 +14,76 @@ import (
 	"strings"
 	"time"
 )
+
+// AddFolder adds a single folder to a dataset
+func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Package, error) {
+
+	if r.PackageType != packageType.Collection {
+		return nil, errors.New("record is not of type COLLECTION")
+	}
+
+	currentTime := time.Now()
+	sqlInsert := "INSERT INTO packages(name, type, state, node_id, parent_id, " +
+		"dataset_id, owner_id, size, import_id, attributes, created_at, updated_at) " +
+		"VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)"
+
+	sqlParentId := sql.NullInt64{Valid: false}
+	constraintName := "(name,dataset_id,\"type\") WHERE parent_id IS NULL"
+	if r.ParentId >= 0 {
+		sqlParentId = sql.NullInt64{
+			Int64: r.ParentId,
+			Valid: true,
+		}
+		constraintName = "(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL"
+	}
+
+	var vals []interface{}
+	vals = append(vals, r.Name, r.PackageType.String(), r.PackageState.String(), r.NodeId, sqlParentId, r.DatasetId,
+		r.OwnerId, nil, r.ImportId, r.Attributes, currentTime, currentTime)
+
+	returnRows := "id, name, type, state, node_id, parent_id, " +
+		"dataset_id, owner_id, size, import_id, created_at, updated_at"
+
+	sqlInsert = sqlInsert +
+		fmt.Sprintf("ON CONFLICT%s DO UPDATE SET updated_at=EXCLUDED.updated_at", constraintName) +
+		fmt.Sprintf(" RETURNING %s;", returnRows)
+
+	//prepare the statement
+	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
+	if err != nil {
+		log.Fatalln("ERROR: ", err)
+	}
+	defer stmt.Close()
+
+	// format all vals at once
+	row := stmt.QueryRowContext(ctx, vals...)
+	var currentRecord pgdb.Package
+	err = row.Scan(
+		&currentRecord.Id,
+		&currentRecord.Name,
+		&currentRecord.PackageType,
+		&currentRecord.PackageState,
+		&currentRecord.NodeId,
+		&currentRecord.ParentId,
+		&currentRecord.DatasetId,
+		&currentRecord.OwnerId,
+		&currentRecord.Size,
+		&currentRecord.ImportId,
+		&currentRecord.CreatedAt,
+		&currentRecord.UpdatedAt,
+	)
+
+	switch err {
+	case sql.ErrNoRows:
+		fmt.Println("Error creating or getting a folder")
+		return nil, err
+	case nil:
+		return &currentRecord, nil
+	default:
+		return nil, err
+	}
+
+}
 
 func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams) ([]pgdb.Package, error) {
 	// Steps:
@@ -142,7 +213,7 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 		"dataset_id, owner_id, size, import_id, created_at, updated_at"
 
 	sqlInsert = sqlInsert + strings.Join(inserts, ",") +
-		fmt.Sprintf("ON CONFLICT(node_id) DO UPDATE SET updated_at=EXCLUDED.updated_at") +
+		//fmt.Sprintf("ON CONFLICT(name,dataset_id,\"type\",parent_id) DO UPDATE SET updated_at=EXCLUDED.updated_at") +
 		fmt.Sprintf(" RETURNING %s;", returnRows)
 
 	//prepare the statement

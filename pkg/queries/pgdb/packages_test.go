@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
@@ -20,6 +21,7 @@ func TestPackageTable(t *testing.T) {
 		"Add package":                    testAddPackage,
 		"Test package attributes values": testPackageAttributeValueAndScan,
 		"Test duplicate file handling":   checkNameExpansion,
+		"Test adding folders":            testAddingFolders,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -171,6 +173,110 @@ func checkNameExpansion(t *testing.T, _ *SQLStore, _ int) {
 	}
 	checkUpdateName(&currentPackage, 1, "", existingNames)
 	assert.Equal(t, "file2 (3).doc", currentPackage.Name, "File with existing appended name should be have index increased (3)")
+
+}
+
+func testAddingFolders(t *testing.T, store *SQLStore, orgId int) {
+	defer truncate(t, store.db, orgId, "packages")
+
+	// TEST ADDING FOLDERS TO ROOT
+	uploadId, _ := uuid.NewUUID()
+	folder := pgdb.PackageParams{
+		Name:         "Folder1",
+		PackageType:  packageType.Collection,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     -1,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000, // should be ignored
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+
+	result, err := store.Queries.AddFolder(context.Background(), folder)
+	assert.NoError(t, err)
+	assert.Equal(t, folder.Name, result.Name, "name of resulting folder should be correct.")
+	assert.False(t, result.ParentId.Valid, "should not have a parent id.")
+	assert.False(t, result.Size.Valid, "folder size should be nil.")
+
+	uploadId, _ = uuid.NewUUID()
+	folder2 := pgdb.PackageParams{
+		Name:         "Folder2",
+		PackageType:  packageType.Collection,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     -1,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000,
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+	result2, err := store.Queries.AddFolder(context.Background(), folder2)
+	assert.NoError(t, err)
+	assert.Equal(t, folder2.Name, result2.Name)
+	assert.NotEqualf(t, result.Id, result2.Id, "Adding two folders should return object with different IDs")
+
+	result3, err := store.Queries.AddFolder(context.Background(), folder)
+	assert.Equal(t, folder.Name, result.Name)
+	assert.Equal(t, result.Id, result3.Id, "conflict should return the existing folder")
+
+	uploadId, _ = uuid.NewUUID()
+	badFolder := pgdb.PackageParams{
+		Name:         "Image",
+		PackageType:  packageType.Image,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     -1,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000,
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+	result4, err := store.Queries.AddFolder(context.Background(), badFolder)
+	assert.Error(t, err, "Adding folder while specifying non-collection package should error")
+	assert.Nil(t, result4, "Adding non-folder using addfolder method should return nil")
+
+	// TEST ADDING FOLDERS TO EXISTING FOLDER
+	uploadId, _ = uuid.NewUUID()
+	nestedFolder1 := pgdb.PackageParams{
+		Name:         "NestedFolder1",
+		PackageType:  packageType.Collection,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     result.Id,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000,
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+	result5, err := store.Queries.AddFolder(context.Background(), nestedFolder1)
+	assert.NoError(t, err)
+	assert.Equal(t, nestedFolder1.Name, result5.Name)
+	assert.True(t, result5.ParentId.Valid, "Package should hava a parent id")
+	resultParentId, _ := result5.ParentId.Value()
+	assert.Equal(t, result.Id, resultParentId, "Parent ID should be ID of parent package")
+
+	uploadId, _ = uuid.NewUUID()
+	nestedFolder2 := pgdb.PackageParams{
+		Name:         "NestedFolder1",
+		PackageType:  packageType.Collection,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     result.Id,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000,
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+
+	// TEST ADDING NESTED FOLDER WITH SAME NAME
+	result6, err := store.Queries.AddFolder(context.Background(), nestedFolder2)
+	assert.Equal(t, result5.Id, result6.Id, "conflict should return the existing folder")
 
 }
 
