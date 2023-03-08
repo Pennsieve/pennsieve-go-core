@@ -37,8 +37,8 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 		constraintName = "(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL"
 	}
 
-	var vals []interface{}
-	vals = append(vals, r.Name, r.PackageType.String(), r.PackageState.String(), r.NodeId, sqlParentId, r.DatasetId,
+	var values []interface{}
+	values = append(values, r.Name, r.PackageType.String(), r.PackageState.String(), r.NodeId, sqlParentId, r.DatasetId,
 		r.OwnerId, nil, r.ImportId, r.Attributes, currentTime, currentTime)
 
 	returnRows := "id, name, type, state, node_id, parent_id, " +
@@ -53,10 +53,11 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 	if err != nil {
 		log.Fatalln("ERROR: ", err)
 	}
+	//goland:noinspection ALL
 	defer stmt.Close()
 
-	// format all vals at once
-	row := stmt.QueryRowContext(ctx, vals...)
+	// format all values at once
+	row := stmt.QueryRowContext(ctx, values...)
 	var currentRecord pgdb.Package
 	err = row.Scan(
 		&currentRecord.Id,
@@ -119,7 +120,7 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 
 		index := 1
 		for len(failedPackages) > 0 {
-			for i, _ := range failedPackages {
+			for i := range failedPackages {
 
 				originalName := failedNameMap[failedPackages[i].Name]
 				expandName(&failedPackages[i], originalName, index)
@@ -223,10 +224,10 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 	}
 
 	currentTime := time.Now()
-	var vals []interface{}
+	var values []interface{}
 	var inserts []string
 
-	// Convert parentId to sql.nullint64 (root folder is -1 in params, but nil in table)
+	// Convert parentId to sql.null int64 (root folder is -1 in params, but nil in table)
 	sqlParentId := sql.NullInt64{Valid: false}
 	constraintStr := "(name,dataset_id,\"type\") WHERE parent_id IS NULL"
 	if parentId >= 0 {
@@ -256,7 +257,7 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 			index*12+12,
 		))
 
-		vals = append(vals, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
+		values = append(values, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
 			row.OwnerId, row.Size, row.ImportId, row.Attributes, currentTime, currentTime)
 	}
 
@@ -274,13 +275,14 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 	if err != nil {
 		log.Fatalln("ERROR: ", err)
 	}
+	//goland:noinspection GoUnhandledErrorResult
 	defer stmt.Close()
 
 	log.Debug(fmt.Sprintf("Insert statement: %v", stmt))
 
 	// format all values at once
 	var allInsertedPackages []pgdb.Package
-	rows, err := stmt.Query(vals...)
+	rows, err := stmt.Query(values...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			log.Println(pqErr)
@@ -316,6 +318,7 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 			allInsertedPackages = append(allInsertedPackages, currentRecord)
 			resultNodeIds = append(resultNodeIds, currentRecord.NodeId)
 		}
+
 	}
 
 	// Check the nodeIds of the package
