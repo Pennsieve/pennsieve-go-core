@@ -128,10 +128,11 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 			}
 
 			insertedPackages, failedPackages, err = q.addPackageByParent(ctx, parentId, failedPackages)
-
 			if err != nil {
 				return nil, err
 			}
+
+			allInsertedPackages = append(allInsertedPackages, insertedPackages...)
 
 			index++
 		}

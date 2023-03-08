@@ -438,7 +438,7 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 	insertParams := generateTestPackages(testParams, 1)
 	results, err := store.AddPackages(context.Background(), insertParams)
 	assert.NoError(t, err)
-	assert.Len(t, results, 5, "Expect to return 5 packages")
+	assert.Len(t, results, 7, "Expect to return 5 packages")
 	for _, p := range results {
 		switch p.NodeId {
 		case insertParams[0].NodeId:
@@ -457,7 +457,13 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 		case insertParams[5].NodeId:
 			actualParentId, _ := p.ParentId.Value()
 			assert.Equal(t, folder2.Id, actualParentId)
-			assert.Equal(t, "package_5 (1).txt", p.Name, "Duplicate Name should result in expanded name.")
+			assert.Equal(t, "package_5 (1).txt", p.Name, "First duplicate Name in same addFiles request should be appended by (1).")
+		case insertParams[6].NodeId:
+			actualParentId, _ := p.ParentId.Value()
+			assert.Equal(t, folder2.Id, actualParentId)
+			assert.Equal(t, "package_5 (2).txt", p.Name, "Second duplicate Name in same addFiles request should be appended by (2).")
+		default:
+			assert.Fail(t, "Returned unexpected package")
 		}
 	}
 
@@ -468,12 +474,15 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 	insertParams = generateTestPackages(testParams, 1)
 	results, err = store.AddPackages(context.Background(), insertParams)
 	assert.NoError(t, err)
+	assert.Len(t, results, 1)
 	for _, p := range results {
 		switch p.NodeId {
 		case insertParams[0].NodeId:
 			actualParentId, _ := p.ParentId.Value()
 			assert.Equal(t, folder2.Id, actualParentId)
-			assert.Equal(t, "package_5 (2).txt", p.Name, "Duplicate Name should result in expanded name.")
+			assert.Equal(t, "package_5 (3).txt", p.Name, "Third duplicate Name in separate addFiles request should be appended by (3).")
+		default:
+			assert.Fail(t, "Did not find expected package")
 		}
 	}
 }
