@@ -13,6 +13,11 @@ import (
 	"testing"
 )
 
+type testPackageParams struct {
+	name     string
+	parentId int64
+}
+
 // TestPackageTable is the main Test Suite function for Packages.
 func TestPackageTable(t *testing.T) {
 	for scenario, fn := range map[string]func(
@@ -254,11 +259,6 @@ func testAddingFolders(t *testing.T, store *SQLStore, orgId int) {
 	result6, err := store.Queries.AddFolder(context.Background(), nestedFolder2)
 	assert.Equal(t, result5.Id, result6.Id, "conflict should return the existing folder")
 
-}
-
-type testPackageParams struct {
-	name     string
-	parentId int64
 }
 
 func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {

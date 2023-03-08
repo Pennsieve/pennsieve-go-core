@@ -14,10 +14,11 @@ import (
 	"time"
 )
 
+// AddFiles add files to packages
 func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb.File, error) {
 
 	currentTime := time.Now()
-	var vals []interface{}
+	var values []interface{}
 	var inserts []string
 
 	for index, row := range files {
@@ -39,7 +40,7 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 
 		etag := fmt.Sprintf("{\"checksum\": \"%s\", \"chunkSize\": \"%s\", \"sha256\": \"%s\"}", row.CheckSum, "32", row.Sha256)
 
-		vals = append(vals, row.PackageId, row.Name, row.FileType.String(), row.S3Bucket, row.S3Key,
+		values = append(values, row.PackageId, row.Name, row.FileType.String(), row.S3Bucket, row.S3Key,
 			row.ObjectType.String(), row.Size, etag, row.UUID.String(), processingState.Unprocessed.String(),
 			uploadState.Uploaded.String(), currentTime, currentTime)
 
@@ -56,13 +57,16 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 	//prepare the statement
 	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
 	if err != nil {
-		log.Fatalln("ERROR: ", err)
+		log.Error("ERROR: ", err)
+		return nil, err
 	}
+
+	//goland:noinspection ALL
 	defer stmt.Close()
 
-	// format all vals at once
+	// format all values at once
 	var allInsertedFiles []pgdb.File
-	rows, err := stmt.Query(vals...)
+	rows, err := stmt.Query(values...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			log.Println(pqErr)
@@ -95,24 +99,20 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 			&currentRecord.UpdatedAt,
 		)
 
+		if err != nil {
+			log.Println("ERROR: ", err)
+			return nil, err
+		}
+
 		currentRecord.FileType = fileType.Dict[fType]
 		currentRecord.ObjectType = objectType.Dict[oType]
 		currentRecord.ProcessingState = processingState.Dict[pState]
 		currentRecord.UploadedState = uploadState.Dict[uState]
 
-		if err != nil {
-			log.Println("ERROR: ", err)
-		}
-
 		allInsertedFiles = append(allInsertedFiles, currentRecord)
-
 	}
 
-	if err != nil {
-		log.Println(err)
-	}
-
-	return allInsertedFiles, err
+	return allInsertedFiles, nil
 }
 
 // UpdateBucketForFile updates the storage bucket as part of upload process and sets Status
