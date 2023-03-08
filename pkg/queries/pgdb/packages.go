@@ -3,7 +3,7 @@ package pgdb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
@@ -15,151 +15,135 @@ import (
 	"time"
 )
 
-type QueryBuilderPayload struct {
-	Query  string
-	Values []interface{}
-	Skip   bool
-}
+// AddFolder adds a single folder to a dataset.
+func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Package, error) {
 
-func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams) ([]pgdb.Package, error) {
-	// Steps:
-	// 1. Checks current packages in folder and check if they have sugested name.
-	// 2. If package with name already exists, append (#) and check if that name exists recursively.
-	// 3. Insert packages
-	// 4. If package with provided packageId exists, don't create new one but return existing one.
-	// 5. return Package objects for returned objects.
-
-	// Handling folders...
-	// 1. If folder already exist --> return existing folder
-	// 2. Update parentId for all records to reflect existing record.
+	if r.PackageType != packageType.Collection {
+		return nil, errors.New("record is not of type COLLECTION")
+	}
 
 	currentTime := time.Now()
-	var vals []interface{}
-	var valsWithParentId []interface{}
-	var valsWithoutParentId []interface{}
+	sqlInsert := "INSERT INTO packages(name, type, state, node_id, parent_id, " +
+		"dataset_id, owner_id, size, import_id, attributes, created_at, updated_at) " +
+		"VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)"
 
-	// All records have the same datasetID
-	datasetId := records[0].DatasetId
+	sqlParentId := sql.NullInt64{Valid: false}
+	constraintName := "(name,dataset_id,\"type\") WHERE parent_id IS NULL"
+	if r.ParentId >= 0 {
+		sqlParentId = sql.NullInt64{
+			Int64: r.ParentId,
+			Valid: true,
+		}
+		constraintName = "(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL"
+	}
 
-	// CHECK EXISTING FILES IN FOLDER AND UPDATE NAME IF NECESSARY
+	var values []interface{}
+	values = append(values, r.Name, r.PackageType.String(), r.PackageState.String(), r.NodeId, sqlParentId, r.DatasetId,
+		r.OwnerId, nil, r.ImportId, r.Attributes, currentTime, currentTime)
 
-	// Group files by parentID so we can combine SQL queries for children of the parent.
+	returnRows := "id, name, type, state, node_id, parent_id, " +
+		"dataset_id, owner_id, size, import_id, created_at, updated_at"
+
+	sqlInsert = sqlInsert +
+		fmt.Sprintf("ON CONFLICT%s DO UPDATE SET updated_at=EXCLUDED.updated_at", constraintName) +
+		fmt.Sprintf(" RETURNING %s;", returnRows)
+
+	//prepare the statement
+	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
+	if err != nil {
+		log.Fatalln("ERROR: ", err)
+	}
+	//goland:noinspection ALL
+	defer stmt.Close()
+
+	// format all values at once
+	row := stmt.QueryRowContext(ctx, values...)
+	var currentRecord pgdb.Package
+	err = row.Scan(
+		&currentRecord.Id,
+		&currentRecord.Name,
+		&currentRecord.PackageType,
+		&currentRecord.PackageState,
+		&currentRecord.NodeId,
+		&currentRecord.ParentId,
+		&currentRecord.DatasetId,
+		&currentRecord.OwnerId,
+		&currentRecord.Size,
+		&currentRecord.ImportId,
+		&currentRecord.CreatedAt,
+		&currentRecord.UpdatedAt,
+	)
+
+	switch err {
+	case sql.ErrNoRows:
+		fmt.Println("Error creating or getting a folder")
+		return nil, err
+	case nil:
+		return &currentRecord, nil
+	default:
+		return nil, err
+	}
+
+}
+
+// AddPackages adds packages to a dataset.
+// 	* This call should typically be wrapped in a Transaction as it will run multiple queries.
+// 	* Packages can be in different folders, but it is assumed that the folders already exist.
+func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams) ([]pgdb.Package, error) {
+	var allInsertedPackages []pgdb.Package
+
+	for _, r := range records {
+		if r.PackageType == packageType.Collection {
+			return nil, errors.New("cannot create COLLECTION package with AddPackages method, use AddFolder instead")
+		}
+	}
+
+	// Group files by parentID, so we can combine SQL queries for children of the parent.
 	parentIdMap := map[int64][]pgdb.PackageParams{}
 	for _, r := range records {
 		parentIdMap[r.ParentId] = append(parentIdMap[r.ParentId], r)
 	}
 
-	// Iterate over map of parentIDs and get children that have names like the ones uploaded.
-	for key, value := range parentIdMap {
-		var names []string
-		for _, v := range value {
-			r := regexp.MustCompile(`(?P<FileName>[^\.]*)?\.?(?P<Extension>.*)`)
-			pathParts := r.FindStringSubmatch(v.Name)
-			fName := pathParts[r.SubexpIndex("FileName")]
-			names = append(names, fmt.Sprintf("'%s%%'", fName))
-		}
-		arrayString := strings.Join(names, ",")
-
-		var sqlString string
-		switch key {
-		case -1:
-			// Check for files in root folder.
-			sqlString = fmt.Sprintf("SELECT name "+
-				"FROM packages "+
-				"WHERE dataset_id=%d "+
-				"AND parent_id IS NULL "+
-				"AND name LIKE ANY (ARRAY[%s]) "+
-				"AND state != '%s';", datasetId, arrayString, packageState.Deleting.String())
-		default:
-			sqlString = fmt.Sprintf("SELECT name "+
-				"FROM packages "+
-				"WHERE dataset_id=%d "+
-				"AND parent_id=%d "+
-				"AND name LIKE ANY (ARRAY[%s]) "+
-				"AND state != '%s';", datasetId, key, arrayString, packageState.Deleting.String())
-		}
-
-		stmt, err := q.db.PrepareContext(ctx, sqlString)
+	for parentId, pRecords := range parentIdMap {
+		insertedPackages, failedPackages, err := q.addPackageByParent(ctx, parentId, pRecords)
 		if err != nil {
 			return nil, err
 		}
 
-		// format all vals at once
-		var allNames []string
-		rows, _ := stmt.Query(vals...)
-		for rows.Next() {
-			var currentFile string
-			err = rows.Scan(
-				&currentFile,
-			)
-			allNames = append(allNames, currentFile)
+		allInsertedPackages = append(allInsertedPackages, insertedPackages...)
+
+		// Update name of failed packages and re-insert.
+		failedNameMap := map[string]string{}
+		for _, p := range failedPackages {
+			failedNameMap[p.Name] = p.Name
 		}
 
-		// Update names if suggested name exists for files
-		// Don't do anything for folders as conflict will return the existing folder.
-		for i, _ := range records {
-			if records[i].PackageType != packageType.Collection {
+		index := 1
+		for len(failedPackages) > 0 {
+			for i := range failedPackages {
 
-				// TODO: Check Package Merge
-				// If we need to merge --> set flag in record so we don't add package and only add file to the existing package.
-
-				// Check Name Collision
-				checkUpdateName(&records[i], 1, "", allNames)
+				originalName := failedNameMap[failedPackages[i].Name]
+				expandName(&failedPackages[i], originalName, index)
+				failedNameMap[failedPackages[i].Name] = originalName
 			}
-		}
 
-	}
-
-	for _, row := range records {
-		attributeJson, err := json.Marshal(row.Attributes)
-		if err != nil {
-			log.Println(err)
-		} else if string(attributeJson) == "null" {
-			attributeJson = []byte("[]")
-		}
-
-		sqlParentId := sql.NullInt64{Valid: false}
-		if row.ParentId >= 0 {
-			sqlParentId = sql.NullInt64{
-				Int64: row.ParentId,
-				Valid: true,
+			insertedPackages, failedPackages, err = q.addPackageByParent(ctx, parentId, failedPackages)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		// Split out the values based on if parent_id is null
-		if sqlParentId.Valid {
-			valsWithParentId = append(valsWithParentId, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
-				row.OwnerId, row.Size, row.ImportId, string(attributeJson), currentTime, currentTime)
-		} else {
-			valsWithoutParentId = append(valsWithoutParentId, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
-				row.OwnerId, row.Size, row.ImportId, string(attributeJson), currentTime, currentTime)
+			allInsertedPackages = append(allInsertedPackages, insertedPackages...)
+
+			index++
 		}
 	}
+	return allInsertedPackages, nil
 
-	queryWithParentId := QueryBuilderPayload{
-		Query:  queryBuilder(valsWithParentId, false),
-		Values: valsWithParentId,
-		Skip:   len(valsWithParentId) < 1,
-	}
-	queryWithoutParentId := QueryBuilderPayload{
-		Query:  queryBuilder(valsWithoutParentId, true),
-		Values: valsWithoutParentId,
-		Skip:   len(valsWithoutParentId) < 1,
-	}
-
-	insertedPackagesWithParentId, err := insertPackages(ctx, q.db, queryWithParentId)
-	insertedPackagesWithoutParentId, err := insertPackages(ctx, q.db, queryWithoutParentId)
-
-	allInsertedPackages := append(insertedPackagesWithParentId, insertedPackagesWithoutParentId...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return allInsertedPackages, err
 }
 
+// GetPackageChildren Get the children in a package
 func (q *Queries) GetPackageChildren(ctx context.Context, parent *pgdb.Package, datasetId int, onlyFolders bool) ([]pgdb.Package, error) {
+
 	folderFilter := ""
 	if onlyFolders {
 		folderFilter = fmt.Sprintf("AND type = '%s'", packageType.Collection.String())
@@ -170,13 +154,14 @@ func (q *Queries) GetPackageChildren(ctx context.Context, parent *pgdb.Package, 
 	queryRows := "id, name, type, state, node_id, parent_id, " +
 		"dataset_id, owner_id, size, created_at, updated_at"
 
-	queryStr := fmt.Sprintf("SELECT %s FROM packages WHERE dataset_id = %d AND parent_id = %d AND state != '%s' %s;",
-		queryRows, datasetId, parent.Id, packageState.Deleting.String(), folderFilter)
-
 	// If parent is empty => return children of root of dataset.
-	if parent.NodeId == "" {
+	var queryStr string
+	if parent == nil {
 		queryStr = fmt.Sprintf("SELECT %s FROM packages WHERE dataset_id = %d AND parent_id IS NULL AND state != '%s' %s;",
 			queryRows, datasetId, packageState.Deleting.String(), folderFilter)
+	} else {
+		queryStr = fmt.Sprintf("SELECT %s FROM packages WHERE dataset_id = %d AND parent_id = %d AND state != '%s' %s;",
+			queryRows, datasetId, parent.Id, packageState.Deleting.String(), folderFilter)
 	}
 
 	rows, err := q.db.QueryContext(ctx, queryStr)
@@ -211,129 +196,179 @@ func (q *Queries) GetPackageChildren(ctx context.Context, parent *pgdb.Package, 
 	return allPackages, err
 }
 
-// checkUpdateName Recursively checks name and append integer if name exists.
-func checkUpdateName(item *pgdb.PackageParams, index int, newName string, namesInFolder []string) {
+// PRIVATE
+// AddPackages runs the query to insert a set of packages that belong to the same parent folder.
+// It returns two arrays:
+// 		1) successfully created packages,
+//		2) packages that failed to be inserted due to a name constraint.
+func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, []pgdb.PackageParams, error) {
 
-	if newName == "" {
-		newName = item.Name
-	}
+	log.Debug(fmt.Sprintf("ADD PACKAGES: %v", records))
 
-	for _, n := range namesInFolder {
-		if newName == n {
-			r := regexp.MustCompile(`(?P<FileName>[^\.]*)?\.?(?P<Extension>.*)`)
-			pathParts := r.FindStringSubmatch(item.Name)
+	var validRecords []pgdb.PackageParams
+	var validNames []string
+	var expectedNodeIds []string
 
-			name := pathParts[r.SubexpIndex("FileName")]
-			extension := pathParts[r.SubexpIndex("Extension")]
+	for _, r := range records {
+		// Check all packages share provided parent
+		if r.ParentId != parentId {
+			return nil, nil, errors.New("mismatch provided parentID and parentId in packageParams")
+		}
 
-			index++
-
-			updatedName := ""
-			if extension != "" {
-				updatedName = fmt.Sprintf("%s (%d).%s", name, index, extension)
-			} else {
-				updatedName = fmt.Sprintf("%s (%d)", name, index)
-			}
-
-			// Recursively call this function to check if updated name also exists.
-			checkUpdateName(item, index, updatedName, namesInFolder)
-			return
+		// Check for name duplication and return duplicates as failed inserts
+		// Create a list of expected Node IDS to compare with actual results from query.
+		if !contains(validNames, r.Name) {
+			validRecords = append(validRecords, r)
+			validNames = append(validNames, r.Name)
+			expectedNodeIds = append(expectedNodeIds, r.NodeId)
 		}
 	}
 
-	// Update name to new name
-	item.Name = newName
-}
-
-// Constructs INSERT query with appropriate ON CONFLICT condition
-func queryBuilder(values []interface{}, parentIdIsNull bool) string {
+	currentTime := time.Now()
+	var values []interface{}
 	var inserts []string
-	const paramsLength int = 12
 
-	for index := 0; index < len(values)/paramsLength; index++ {
-		inserts = append(inserts, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			index*12+1,
-			index*paramsLength+2,
-			index*paramsLength+3,
-			index*paramsLength+4,
-			index*paramsLength+5,
-			index*paramsLength+6,
-			index*paramsLength+7,
-			index*paramsLength+8,
-			index*paramsLength+9,
-			index*paramsLength+10,
-			index*paramsLength+11,
-			index*paramsLength+12,
-		))
+	// Convert parentId to sql.null int64 (root folder is -1 in params, but nil in table)
+	sqlParentId := sql.NullInt64{Valid: false}
+	constraintStr := "(name,dataset_id,\"type\") WHERE parent_id IS NULL"
+	if parentId >= 0 {
+		sqlParentId = sql.NullInt64{
+			Int64: parentId,
+			Valid: true,
+		}
+		constraintStr = "(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL"
 	}
 
 	sqlInsert := "INSERT INTO packages(name, type, state, node_id, parent_id, " +
 		"dataset_id, owner_id, size, import_id, attributes, created_at, updated_at) VALUES "
 
-	query := sqlInsert + strings.Join(inserts, ",")
+	for index, row := range validRecords {
+		inserts = append(inserts, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			index*12+1,
+			index*12+2,
+			index*12+3,
+			index*12+4,
+			index*12+5,
+			index*12+6,
+			index*12+7,
+			index*12+8,
+			index*12+9,
+			index*12+10,
+			index*12+11,
+			index*12+12,
+		))
+
+		values = append(values, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
+			row.OwnerId, row.Size, row.ImportId, row.Attributes, currentTime, currentTime)
+	}
 
 	returnRows := "id, name, type, state, node_id, parent_id, " +
 		"dataset_id, owner_id, size, import_id, created_at, updated_at"
 
-	if parentIdIsNull {
-		query = query + fmt.Sprintf("ON CONFLICT(name,dataset_id,\"type\") WHERE parent_id IS NULL DO UPDATE SET updated_at=EXCLUDED.updated_at")
-	} else {
-		query = query + fmt.Sprintf("ON CONFLICT(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL DO UPDATE SET updated_at=EXCLUDED.updated_at")
-	}
+	// Returning packages. If we run into a constraint, return the existing package.
+	// We will check in the addPackages function for the ID to see if there was a conflict.
+	sqlInsert = sqlInsert + strings.Join(inserts, ",") +
+		fmt.Sprintf("ON CONFLICT%s DO UPDATE SET updated_at=EXCLUDED.updated_at", constraintStr) +
+		fmt.Sprintf(" RETURNING %s;", returnRows)
 
-	query = query + fmt.Sprintf(" RETURNING %s;", returnRows)
-
-	return query
-
-}
-
-func insertPackages(ctx context.Context, db DBTX, qb QueryBuilderPayload) ([]pgdb.Package, error) {
-	if qb.Skip {
-		return []pgdb.Package{}, nil
-	}
-	//prepare the statement
-	stmt, err := db.PrepareContext(ctx, qb.Query)
+	// prepare the statement
+	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
 	if err != nil {
 		log.Fatalln("ERROR: ", err)
 	}
+	//goland:noinspection GoUnhandledErrorResult
 	defer stmt.Close()
 
+	log.Debug(fmt.Sprintf("Insert statement: %v", stmt))
+
 	// format all values at once
-	var insertedPackages []pgdb.Package
-	rows, err := stmt.Query(qb.Values...)
+	var allInsertedPackages []pgdb.Package
+	rows, err := stmt.Query(values...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			log.Println(pqErr)
 		}
+		return nil, nil, err
 	}
 
-	if rows != nil {
-		for rows.Next() {
-			var currentRecord pgdb.Package
-			err = rows.Scan(
-				&currentRecord.Id,
-				&currentRecord.Name,
-				&currentRecord.PackageType,
-				&currentRecord.PackageState,
-				&currentRecord.NodeId,
-				&currentRecord.ParentId,
-				&currentRecord.DatasetId,
-				&currentRecord.OwnerId,
-				&currentRecord.Size,
-				&currentRecord.ImportId,
-				&currentRecord.CreatedAt,
-				&currentRecord.UpdatedAt,
-			)
+	var resultNodeIds []string
+	for rows.Next() {
+		var currentRecord pgdb.Package
+		err = rows.Scan(
+			&currentRecord.Id,
+			&currentRecord.Name,
+			&currentRecord.PackageType,
+			&currentRecord.PackageState,
+			&currentRecord.NodeId,
+			&currentRecord.ParentId,
+			&currentRecord.DatasetId,
+			&currentRecord.OwnerId,
+			&currentRecord.Size,
+			&currentRecord.ImportId,
+			&currentRecord.CreatedAt,
+			&currentRecord.UpdatedAt,
+		)
 
-			if err != nil {
-				log.Println("ERROR: ", err)
-			}
-			insertedPackages = append(insertedPackages, currentRecord)
+		if err != nil {
+			log.Println("ERROR: ", err)
+			return nil, nil, err
+		}
+
+		// Only return newly inserted objects
+		if contains(expectedNodeIds, currentRecord.NodeId) {
+			allInsertedPackages = append(allInsertedPackages, currentRecord)
+			resultNodeIds = append(resultNodeIds, currentRecord.NodeId)
+		}
+
+	}
+
+	// Check the nodeIds of the package
+	var failedInserts []pgdb.PackageParams
+	for _, r := range records {
+		if !contains(resultNodeIds, r.NodeId) {
+			log.Debug(fmt.Sprintf("MISMATCH NODEID: %s, %v", r.NodeId, resultNodeIds))
+
+			failedInserts = append(failedInserts, r)
 		}
 	}
 
-	if err != nil {
-		log.Println(err)
+	return allInsertedPackages, failedInserts, nil
+
+}
+
+// HELPER FUNCTIONS
+
+// contains checks if a string is present in a slice
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
 	}
-	return insertedPackages, err
+
+	return false
+}
+
+// expandName appends an index to a package name.
+func expandName(item *pgdb.PackageParams, originalName string, index int) *pgdb.PackageParams {
+	r := regexp.MustCompile(`(?P<FileName>[^.]*)\.?(?P<Extension>.*)`)
+	pathParts := r.FindStringSubmatch(originalName)
+
+	filePart := pathParts[r.SubexpIndex("FileName")]
+	extension := pathParts[r.SubexpIndex("Extension")]
+
+	updatedName := ""
+	if extension != "" {
+		updatedName = fmt.Sprintf("%s (%d).%s", filePart, index, extension)
+		log.Debug(fmt.Sprintf("CHECKUPDATE -Add index: %d - %s", index, updatedName))
+
+	} else {
+		updatedName = fmt.Sprintf("%s (%d)", filePart, index)
+		log.Debug(fmt.Sprintf("CHECKUPDATE -Add index: %d - %s", index, updatedName))
+
+	}
+
+	item.Name = updatedName
+
+	return item
 }
