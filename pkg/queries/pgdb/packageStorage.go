@@ -48,3 +48,18 @@ func (q *Queries) IncrementPackageStorageAncestors(ctx context.Context, parentId
 
 	return err
 }
+
+func (q *Queries) GetPackageStorageById(ctx context.Context, packageId int64) (int64, error) {
+
+	packageSize := int64(0)
+	err := q.db.QueryRowContext(ctx,
+		"select p.size from package_storage as p where p.package_id = $1;",
+		packageId).Scan(&packageSize)
+
+	if err != nil {
+		log.Error("unable to get package size", err)
+		return int64(0), err
+	}
+
+	return packageSize, nil
+}

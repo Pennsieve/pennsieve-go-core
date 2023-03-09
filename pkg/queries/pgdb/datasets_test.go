@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 func TestDatasetsInsertSelect(t *testing.T) {
 	orgId := 3
 	db := testDB[orgId]
-	defer truncate(t, testDB[orgId], orgId, "datasets")
+	defer test.Truncate(t, testDB[orgId], orgId, "datasets")
 
 	input := pgdb.Dataset{
 		Id:           1000,

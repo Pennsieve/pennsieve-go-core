@@ -9,14 +9,10 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
-
-type testPackageParams struct {
-	name     string
-	parentId int64
-}
 
 // TestPackageTable is the main Test Suite function for Packages.
 func TestPackageTable(t *testing.T) {
@@ -41,7 +37,7 @@ func TestPackageTable(t *testing.T) {
 // TESTS
 func testAddPackage(t *testing.T, store *SQLStore, orgId int) {
 
-	defer truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "packages")
 
 	attr := []packageInfo.PackageAttribute{
 		{
@@ -121,7 +117,7 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore, orgId int) 
 				orgId)
 			_, err := store.db.Exec(insert, p.Name, p.PackageType, p.PackageState, p.NodeId, p.DatasetId, p.OwnerId, p.Attributes)
 			assert.NoError(t, err)
-			defer truncate(t, store.db, orgId, "packages")
+			defer test.Truncate(t, store.db, orgId, "packages")
 
 			countStmt := fmt.Sprintf("SELECT COUNT(*) FROM \"%d\".packages", orgId)
 			var count int
@@ -155,7 +151,7 @@ func testPackageAttributeValueAndScan(t *testing.T, store *SQLStore, orgId int) 
 
 //testAddingFolders tests adding folders to datasets
 func testAddingFolders(t *testing.T, store *SQLStore, orgId int) {
-	defer truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "packages")
 
 	// TEST ADDING FOLDERS TO ROOT
 	uploadId, _ := uuid.NewUUID()
@@ -261,45 +257,45 @@ func testAddingFolders(t *testing.T, store *SQLStore, orgId int) {
 }
 
 func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {
-	defer truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "packages")
 
 	// Test adding packages to root
-	testParams := []testPackageParams{
-		{name: "package_1.txt", parentId: -1},
-		{name: "package_2.txt", parentId: -1},
-		{name: "package_3.txt", parentId: -1},
-		{name: "package_4.txt", parentId: -1},
-		{name: "package_5.txt", parentId: -1},
+	testParams := []test.TestPackageParams{
+		{Name: "package_1.txt", ParentId: -1},
+		{Name: "package_2.txt", ParentId: -1},
+		{Name: "package_3.txt", ParentId: -1},
+		{Name: "package_4.txt", ParentId: -1},
+		{Name: "package_5.txt", ParentId: -1},
 	}
 
-	insertParams := generateTestPackages(testParams, 1)
+	insertParams := test.GenerateTestPackages(testParams, 1)
 	results, failedPackages, err := store.Queries.addPackageByParent(context.Background(), -1, insertParams)
 	assert.Empty(t, failedPackages, "All packages should be inserted correctly.")
 	assert.NoError(t, err)
 	assert.Len(t, results, 5, "Expect to return 5 packages")
 
-	// Test inserting package with existing name
-	testParams = []testPackageParams{
-		{name: "package_1.txt", parentId: -1}}
+	// Test inserting package with existing Name
+	testParams = []test.TestPackageParams{
+		{Name: "package_1.txt", ParentId: -1}}
 
-	insertParams = generateTestPackages(testParams, 1)
+	insertParams = test.GenerateTestPackages(testParams, 1)
 	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
 	assert.NoError(t, err)
 	assert.Len(t, results, 0, "Expect to not insert package as there is a conflict.")
 	assert.Len(t, failedPackages, 1)
-	assert.Equal(t, testParams[0].name, failedPackages[0].Name)
+	assert.Equal(t, testParams[0].Name, failedPackages[0].Name)
 
 	// Test inserting package with same name to different dataset
-	insertParams = generateTestPackages(testParams, 2)
+	insertParams = test.GenerateTestPackages(testParams, 2)
 	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
 	assert.NoError(t, err)
 	assert.Len(t, results, 1, "Expect to insert package in dataset 2.")
 	assert.Len(t, failedPackages, 0)
-	assert.Equal(t, testParams[0].name, results[0].Name)
+	assert.Equal(t, testParams[0].Name, results[0].Name)
 }
 
 func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
-	defer truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "packages")
 
 	// ADD FOLDER TO ROOT
 	uploadId, _ := uuid.NewUUID()
@@ -338,46 +334,46 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 
 	// Test adding packages to root
-	testParams := []testPackageParams{
-		{name: "package_1.txt", parentId: result.Id},
-		{name: "package_2.txt", parentId: result.Id},
-		{name: "package_3.txt", parentId: result.Id},
-		{name: "package_4.txt", parentId: result.Id},
-		{name: "package_5.txt", parentId: result.Id},
+	testParams := []test.TestPackageParams{
+		{Name: "package_1.txt", ParentId: result.Id},
+		{Name: "package_2.txt", ParentId: result.Id},
+		{Name: "package_3.txt", ParentId: result.Id},
+		{Name: "package_4.txt", ParentId: result.Id},
+		{Name: "package_5.txt", ParentId: result.Id},
 	}
 
-	insertParams := generateTestPackages(testParams, 1)
+	insertParams := test.GenerateTestPackages(testParams, 1)
 	results, failedPackages, err := store.Queries.addPackageByParent(context.Background(), result.Id, insertParams)
 	assert.Empty(t, failedPackages, "All packages should be inserted correctly.")
 	assert.NoError(t, err)
 	assert.Len(t, results, 5, "Expect to return 5 packages")
 
 	// TEST PROVIDED PARENT ID DOES NOT MATCH ALL PARENT IDs
-	testParams = []testPackageParams{
-		{name: "package_6.txt", parentId: result.Id},
+	testParams = []test.TestPackageParams{
+		{Name: "package_6.txt", ParentId: result.Id},
 	}
-	insertParams = generateTestPackages(testParams, 1)
+	insertParams = test.GenerateTestPackages(testParams, 1)
 	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
 	assert.Error(t, err, "Should return an error when parent_id in call does not match parent_id in params.")
 	assert.Nil(t, results)
 	assert.Nil(t, failedPackages)
 
 	// TEST MIXED PARENT ID SHOULD FAIL
-	testParams = []testPackageParams{
-		{name: "package_1.txt", parentId: result.Id},
-		{name: "package_2.txt", parentId: -1},
+	testParams = []test.TestPackageParams{
+		{Name: "package_1.txt", ParentId: result.Id},
+		{Name: "package_2.txt", ParentId: -1},
 	}
-	insertParams = generateTestPackages(testParams, 1)
+	insertParams = test.GenerateTestPackages(testParams, 1)
 	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), result.Id, insertParams)
 	assert.Error(t, err, "Should return an error when parent_id in call does not match parent_id in params.")
 	assert.Nil(t, results)
 	assert.Nil(t, failedPackages)
 
 	// TEST NAMING CONFLICT
-	testParams = []testPackageParams{
-		{name: "package_1.txt", parentId: result.Id},
+	testParams = []test.TestPackageParams{
+		{Name: "package_1.txt", ParentId: result.Id},
 	}
-	insertParams = generateTestPackages(testParams, 1)
+	insertParams = test.GenerateTestPackages(testParams, 1)
 	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), result.Id, insertParams)
 	assert.NoError(t, err)
 	assert.Len(t, results, 0, "Expect to not insert package as there is a naming conflict.")
@@ -386,7 +382,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 }
 
 func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
-	defer truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "packages")
 
 	// ADD FOLDER TO ROOT
 	uploadId, _ := uuid.NewUUID()
@@ -425,17 +421,17 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 
 	// Test adding packages to root
-	testParams := []testPackageParams{
-		{name: "package_1.txt", parentId: -1},
-		{name: "package_2.txt", parentId: -1},
-		{name: "package_3.txt", parentId: folder1.Id},
-		{name: "package_4.txt", parentId: folder2.Id},
-		{name: "package_5.txt", parentId: folder2.Id},
-		{name: "package_5.txt", parentId: folder2.Id},
-		{name: "package_5.txt", parentId: folder2.Id},
+	testParams := []test.TestPackageParams{
+		{Name: "package_1.txt", ParentId: -1},
+		{Name: "package_2.txt", ParentId: -1},
+		{Name: "package_3.txt", ParentId: folder1.Id},
+		{Name: "package_4.txt", ParentId: folder2.Id},
+		{Name: "package_5.txt", ParentId: folder2.Id},
+		{Name: "package_5.txt", ParentId: folder2.Id},
+		{Name: "package_5.txt", ParentId: folder2.Id},
 	}
 
-	insertParams := generateTestPackages(testParams, 1)
+	insertParams := test.GenerateTestPackages(testParams, 1)
 	results, err := store.AddPackages(context.Background(), insertParams)
 	assert.NoError(t, err)
 	assert.Len(t, results, 7, "Expect to return 5 packages")
@@ -468,10 +464,10 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 	}
 
 	// TEST ADDING DOUBLE DUPLICATE
-	testParams = []testPackageParams{
-		{name: "package_5.txt", parentId: folder2.Id},
+	testParams = []test.TestPackageParams{
+		{Name: "package_5.txt", ParentId: folder2.Id},
 	}
-	insertParams = generateTestPackages(testParams, 1)
+	insertParams = test.GenerateTestPackages(testParams, 1)
 	results, err = store.AddPackages(context.Background(), insertParams)
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
@@ -543,58 +539,4 @@ func testNameExpansion(t *testing.T, _ *SQLStore, _ int) {
 	}
 	expandName(&currentPackage, originalName, 2)
 	assert.Equal(t, "file one (2).txt", currentPackage.Name, "File with existing name should be appended with (2)")
-}
-
-func generateTestPackages(params []testPackageParams, datasetId int) []pgdb.PackageParams {
-
-	var result []pgdb.PackageParams
-
-	attr := []packageInfo.PackageAttribute{
-		{
-			Key:      "subtype",
-			Fixed:    false,
-			Value:    "Image",
-			Hidden:   true,
-			Category: "Pennsieve",
-			DataType: "string",
-		}, {
-			Key:      "icon",
-			Fixed:    false,
-			Value:    "Microscope",
-			Hidden:   true,
-			Category: "Pennsieve",
-			DataType: "string",
-		},
-	}
-
-	for _, p := range params {
-		uploadId, _ := uuid.NewUUID()
-
-		insertPackage := pgdb.PackageParams{
-			Name:         p.name,
-			PackageType:  packageType.Image,
-			PackageState: packageState.Unavailable,
-			NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
-			ParentId:     p.parentId,
-			DatasetId:    datasetId,
-			OwnerId:      1,
-			Size:         1000,
-			ImportId: sql.NullString{
-				String: uploadId.String(),
-				Valid:  true,
-			},
-			Attributes: attr,
-		}
-
-		result = append(result, insertPackage)
-	}
-
-	return result
-}
-
-// HELPER FUNCTIONS
-func truncate(t *testing.T, db *sql.DB, orgID int, table string) {
-	query := fmt.Sprintf("TRUNCATE TABLE \"%d\".%s CASCADE", orgID, table)
-	_, err := db.Exec(query)
-	assert.NoError(t, err)
 }

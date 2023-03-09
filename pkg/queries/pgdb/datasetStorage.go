@@ -15,8 +15,23 @@ func (q *Queries) IncrementDatasetStorage(ctx context.Context, datasetId int64, 
 
 	_, err := q.db.ExecContext(ctx, queryStr, datasetId, size)
 	if err != nil {
-		log.Println("Error incrementing package size: ", err)
+		log.Println("Error incrementing dataset size: ", err)
 	}
 
 	return err
+}
+
+func (q *Queries) GetDatasetStorageById(ctx context.Context, datasetId int64) (int64, error) {
+
+	datasetSize := int64(0)
+	err := q.db.QueryRowContext(ctx,
+		"select p.size from dataset_storage as p where p.dataset_id = $1;",
+		datasetId).Scan(&datasetSize)
+
+	if err != nil {
+		log.Error("unable to get dataset size", err)
+		return int64(0), err
+	}
+
+	return datasetSize, nil
 }

@@ -20,3 +20,18 @@ func (q *Queries) IncrementOrganizationStorage(ctx context.Context, organization
 
 	return err
 }
+
+func (q *Queries) GetOrganizationStorageById(ctx context.Context, organizationId int64) (int64, error) {
+
+	orgSize := int64(0)
+	err := q.db.QueryRowContext(ctx,
+		"select p.size from pennsieve.organization_storage as p where p.organization_id = $1;",
+		organizationId).Scan(&orgSize)
+
+	if err != nil {
+		log.Error("unable to get organization size", err)
+		return int64(0), err
+	}
+
+	return orgSize, nil
+}
