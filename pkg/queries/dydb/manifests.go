@@ -58,8 +58,8 @@ func (q *Queries) CreateManifest(ctx context.Context, manifestTableName string, 
 	return nil
 }
 
-// GetFromManifest returns a Manifest item for a given upload ID.
-func (q *Queries) GetFromManifest(ctx context.Context, manifestTableName string, manifestId string) (*dydb.ManifestTable, error) {
+// GetFromManifest returns a Manifest item for a given manifest ID.
+func (q *Queries) GetManifestById(ctx context.Context, manifestTableName string, manifestId string) (*dydb.ManifestTable, error) {
 
 	item := dydb.ManifestTable{}
 
