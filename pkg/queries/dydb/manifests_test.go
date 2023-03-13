@@ -41,7 +41,7 @@ func testGetManifestById(t *testing.T, client *DynamoStore) {
 	err := client.CreateManifest(ctx, manifestTableName, tb)
 	assert.Nil(t, err, "Manifest could not be created")
 
-	out, err := client.GetFromManifest(ctx, manifestTableName, tb.ManifestId)
+	out, err := client.GetManifestById(ctx, manifestTableName, tb.ManifestId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, "N:Dataset:1234", out.DatasetNodeId)
 }
@@ -67,10 +67,10 @@ func testUpdateManifestStatus(t *testing.T, client *DynamoStore) {
 	ctx := context.Background()
 	manifestId := "1111"
 
-	err := client.UpdateManifestStatus(ctx, manifestTableName, manifestId, manifest.Completed)
+	err := client.updateManifestStatus(ctx, manifestTableName, manifestId, manifest.Completed)
 	assert.Nil(t, err, "Manifest status could not be updated")
 
-	out, err := client.GetFromManifest(ctx, manifestTableName, manifestId)
+	out, err := client.GetManifestById(ctx, manifestTableName, manifestId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, "Completed", out.Status)
 }

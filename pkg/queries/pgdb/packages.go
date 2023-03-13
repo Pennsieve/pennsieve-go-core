@@ -196,6 +196,37 @@ func (q *Queries) GetPackageChildren(ctx context.Context, parent *pgdb.Package, 
 	return allPackages, err
 }
 
+func (q *Queries) GetPackageByNodeId(ctx context.Context, nodeId string) (*pgdb.Package, error) {
+
+	queryRows := "id, name, type, state, node_id, parent_id, " +
+		"dataset_id, owner_id, size, created_at, updated_at"
+
+	queryStr := fmt.Sprintf("SELECT %s FROM packages WHERE node_id = %s", queryRows, nodeId)
+	result := q.db.QueryRowContext(ctx, queryStr)
+
+	currentRecord := pgdb.Package{}
+	err := result.Scan(&currentRecord.Id,
+		&currentRecord.Name,
+		&currentRecord.PackageType,
+		&currentRecord.PackageState,
+		&currentRecord.NodeId,
+		&currentRecord.ParentId,
+		&currentRecord.DatasetId,
+		&currentRecord.OwnerId,
+		&currentRecord.Size,
+		&currentRecord.CreatedAt,
+		&currentRecord.UpdatedAt,
+	)
+
+	if err != nil {
+		log.Println("ERROR: ", err)
+		return nil, err
+	}
+
+	return &currentRecord, nil
+
+}
+
 // PRIVATE
 // AddPackages runs the query to insert a set of packages that belong to the same parent folder.
 // It returns two arrays:

@@ -2,6 +2,7 @@ package dydb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -58,7 +59,7 @@ func (q *Queries) CreateManifest(ctx context.Context, manifestTableName string, 
 	return nil
 }
 
-// GetFromManifest returns a Manifest item for a given manifest ID.
+// GetManifestById returns a Manifest item for a given manifest ID.
 func (q *Queries) GetManifestById(ctx context.Context, manifestTableName string, manifestId string) (*dydb.ManifestTable, error) {
 
 	item := dydb.ManifestTable{}
@@ -117,8 +118,44 @@ func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName 
 	return items, nil
 }
 
+// CheckUpdateManifestStatus checks current status of Manifest and updates if necessary.
+func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTableName string, manifestTableName string, m *dydb.ManifestTable) (manifest.Status, error) {
+
+	// Check if there are any remaining items for manifest and
+	// set manifest status if not
+	reqStatus := sql.NullString{
+		String: "InProgress",
+		Valid:  true,
+	}
+
+	setStatus := manifest.Initiated
+
+	remaining, _, err := q.GetFilesPaginated(ctx, manifestFileTableName,
+		m.ManifestId, reqStatus, 1, nil)
+	if err != nil {
+		return setStatus, err
+	}
+
+	if len(remaining) == 0 {
+		setStatus = manifest.Completed
+		err = q.updateManifestStatus(ctx, manifestTableName, m.ManifestId, setStatus)
+		if err != nil {
+			return setStatus, err
+		}
+	} else if m.Status == "Completed" {
+		setStatus = manifest.Uploading
+		err = q.updateManifestStatus(ctx, manifestTableName, m.ManifestId, setStatus)
+		if err != nil {
+			return setStatus, err
+		}
+	}
+
+	return setStatus, nil
+
+}
+
 // UpdateManifestStatus updates the status of the upload in dydb
-func (q *Queries) UpdateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
+func (q *Queries) updateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
 
 	_, err := q.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
 		TableName: aws.String(tableName),
