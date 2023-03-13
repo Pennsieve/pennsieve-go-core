@@ -487,6 +487,7 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 		Status:         manifestFile.Registered.String(),
 		MergePackageId: file.MergePackageId,
 		FileType:       file.FileType,
+		InProgress:     "x",
 	}
 
 	// Switch based on provided status from client
