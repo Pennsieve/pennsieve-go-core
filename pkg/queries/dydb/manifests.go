@@ -101,19 +101,19 @@ func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName 
 		Select: "ALL_ATTRIBUTES",
 	}
 
-	result, err := q.db.Query(context.Background(), &queryInput)
+	result, err := q.db.Query(ctx, &queryInput)
 	if err != nil {
 		return nil, err
 	}
 
-	items := []dydb.ManifestTable{}
+	var items []dydb.ManifestTable
 	for _, item := range result.Items {
-		manifest := dydb.ManifestTable{}
-		err = attributevalue.UnmarshalMap(item, &manifest)
+		m := dydb.ManifestTable{}
+		err = attributevalue.UnmarshalMap(item, &m)
 		if err != nil {
 			return nil, fmt.Errorf("UnmarshalMap: %v\n", err)
 		}
-		items = append(items, manifest)
+		items = append(items, m)
 	}
 
 	return items, nil
@@ -159,7 +159,7 @@ func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTab
 // UpdateManifestStatus updates the status of the upload in dydb
 func (q *Queries) updateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
 
-	_, err := q.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+	_, err := q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},

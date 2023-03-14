@@ -79,7 +79,7 @@ func (q *Queries) UpdateFileTableStatus(ctx context.Context, tableName string, m
 	return err
 }
 
-// GetFilesForPath returns files in path for a upload with optional filter.
+// GetFilesForPath returns files in path for an upload with optional filter.
 func (q *Queries) GetFilesForPath(ctx context.Context, tableName string, manifestId string, path string, filter string,
 	limit int32, startKey map[string]types.AttributeValue) (*dynamodb.QueryOutput, error) {
 
@@ -103,7 +103,7 @@ func (q *Queries) GetFilesForPath(ctx context.Context, tableName string, manifes
 	return result, nil
 }
 
-// GetManifestFile returns a upload file from the ManifestFile Table.
+// GetManifestFile returns an upload file from the ManifestFile Table.
 func (q *Queries) GetManifestFile(ctx context.Context, tableName string, manifestId string, uploadId string) (*dydb.ManifestFileTable, error) {
 	item := dydb.ManifestFileTable{}
 
@@ -191,12 +191,12 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 	var items []dydb.ManifestFileTable
 	for _, item := range result.Items {
 		fmt.Println("Hello item: ", item)
-		manifestFile := dydb.ManifestFileTable{}
-		err = attributevalue.UnmarshalMap(item, &manifestFile)
+		mFile := dydb.ManifestFileTable{}
+		err = attributevalue.UnmarshalMap(item, &mFile)
 		if err != nil {
 			return nil, nil, fmt.Errorf("UnmarshalMap: %v\n", err)
 		}
-		items = append(items, manifestFile)
+		items = append(items, mFile)
 	}
 
 	return items, result.LastEvaluatedKey, nil
@@ -272,7 +272,7 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 		TableName: aws.String(tableName),
 	}
 
-	result, err := q.db.GetItem(context.Background(), getItemInput)
+	result, err := q.db.GetItem(ctx, getItemInput)
 	if err != nil {
 		log.Error("Error getting item from dydb")
 	}
@@ -292,7 +292,7 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 }
 
 // syncWorker is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
-func (q *Queries) syncWorker(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, tableName string, fileTableName string) (*manifest.AddFilesStats, error) {
+func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, tableName string, fileTableName string) (*manifest.AddFilesStats, error) {
 
 	// This is a syncWorker which grabs a set of items from the channel and syncs the files.
 
@@ -332,7 +332,7 @@ func (q *Queries) syncWorker(workerId int32, files fileWalk, manifestId string, 
 func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableName string, manifestId string,
 	fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
 
-	// Create Batch Put request for the fileslice and update dydb with one call
+	// Create Batch Put request for the file-slice and update dydb with one call
 	var writeRequests []types.WriteRequest
 	var syncResponses []manifestFile.FileStatusDTO
 
@@ -351,7 +351,7 @@ func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableNam
 	var nrFilesUpdated int
 	var nrFilesRemoved int
 	for _, file := range fileSlice {
-		// Get existing status for file in dydb, Unknown if does not exist
+		// Get existing status for file in dydb, Unknown if it does not exist
 		var request *types.WriteRequest
 		var setStatus manifestFile.Status
 		if forceStatus == nil {
@@ -412,7 +412,7 @@ func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableNam
 			setStatus = *forceStatus
 		}
 
-		// If action requires dydb actionm add request to array of requests
+		// If action requires dydb action add request to array of requests
 		if request != nil {
 			writeRequests = append(writeRequests, *request)
 		}
@@ -437,7 +437,7 @@ func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableNam
 			ReturnItemCollectionMetrics: "NONE",
 		}
 
-		// Write files to upload file dynamobd table
+		// Write files to upload file dynamodb table
 		data, err := q.db.BatchWriteItem(ctx, &params)
 		if err != nil {
 			log.WithFields(

@@ -74,7 +74,8 @@ func testSyncFiles(t *testing.T, client *DynamoStore) {
 	assert.Equal(t, manifest.Initiated.String(), m.Status, "Check 1: Manifest status should be initialized")
 
 	// Check Status
-	client.CheckUpdateManifestStatus(ctx, manifestFileTableName, manifestTableName, manifestId, m.Status)
+	_, err = client.CheckUpdateManifestStatus(ctx, manifestFileTableName, manifestTableName, manifestId, m.Status)
+	assert.NoError(t, err)
 
 	// Check status should not have impacted manifest status
 	m, err = client.GetManifestById(ctx, manifestTableName, manifestId)
@@ -113,7 +114,7 @@ func testSyncFiles(t *testing.T, client *DynamoStore) {
 
 }
 
-func testRemoveFailedFilesFromResponse(t *testing.T, client *DynamoStore) {
+func testRemoveFailedFilesFromResponse(t *testing.T, _ *DynamoStore) {
 	syncResp := []manifestFile.FileStatusDTO{
 		{
 			UploadId: "1",
@@ -148,7 +149,7 @@ func testRemoveFailedFilesFromResponse(t *testing.T, client *DynamoStore) {
 	})
 }
 
-func testGetAction(t *testing.T, client *DynamoStore) {
+func testGetAction(t *testing.T, _ *DynamoStore) {
 	manifestId := "getActionTest"
 
 	file := manifestFile.FileDTO{

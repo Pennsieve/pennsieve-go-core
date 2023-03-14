@@ -51,8 +51,8 @@ func TestMain(m *testing.M) {
 	}
 
 	svc := getDynamoClient()
-	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String(manifestTableName)})
-	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String(manifestFileTableName)})
+	_, _ = svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String(manifestTableName)})
+	_, _ = svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String(manifestFileTableName)})
 
 	_, err := svc.CreateTable(context.TODO(), &dynamodb.CreateTableInput{
 		AttributeDefinitions: []types.AttributeDefinition{
