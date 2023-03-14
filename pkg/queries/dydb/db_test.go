@@ -51,8 +51,8 @@ func TestMain(m *testing.M) {
 	}
 
 	svc := getDynamoClient()
-	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String("upload-table")})
-	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String("upload-file-table")})
+	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String(manifestTableName)})
+	svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{TableName: aws.String(manifestFileTableName)})
 
 	_, err := svc.CreateTable(context.TODO(), &dynamodb.CreateTableInput{
 		AttributeDefinitions: []types.AttributeDefinition{
@@ -95,7 +95,7 @@ func TestMain(m *testing.M) {
 				ProvisionedThroughput: nil,
 			},
 		},
-		TableName:   aws.String("upload-table"),
+		TableName:   aws.String(manifestTableName),
 		BillingMode: types.BillingModePayPerRequest,
 	})
 
@@ -104,7 +104,7 @@ func TestMain(m *testing.M) {
 	} else {
 		waiter := dynamodb.NewTableExistsWaiter(svc)
 		err = waiter.Wait(context.TODO(), &dynamodb.DescribeTableInput{
-			TableName: aws.String("upload-table")}, 5*time.Minute)
+			TableName: aws.String(manifestTableName)}, 5*time.Minute)
 		if err != nil {
 			log.Printf("Wait for table exists failed. Here's why: %v\n", err)
 		}
@@ -199,7 +199,7 @@ func TestMain(m *testing.M) {
 				ProvisionedThroughput: nil,
 			},
 		},
-		TableName:   aws.String("upload-file-table"),
+		TableName:   aws.String(manifestFileTableName),
 		BillingMode: types.BillingModePayPerRequest,
 	})
 
@@ -208,7 +208,7 @@ func TestMain(m *testing.M) {
 	} else {
 		waiter := dynamodb.NewTableExistsWaiter(svc)
 		err = waiter.Wait(context.TODO(), &dynamodb.DescribeTableInput{
-			TableName: aws.String("upload-file-table")}, 5*time.Minute)
+			TableName: aws.String(manifestFileTableName)}, 5*time.Minute)
 		if err != nil {
 			log.Printf("Wait for table exists failed. Here's why: %v\n", err)
 		}

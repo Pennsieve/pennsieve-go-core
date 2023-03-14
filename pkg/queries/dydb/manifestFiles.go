@@ -26,203 +26,56 @@ var syncWG sync.WaitGroup
 const batchSize = 25 // maximum batch size for batchPut action on dydb
 const nrWorkers = 2  // preliminary profiling shows that more workers don't improve efficiency for up to 1000 files
 
-// SyncFiles adds or updates files in the manifest file table
-func (q *Queries) SyncFiles(ctx context.Context, tableName string, manifestId string, fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
-	// Create Batch Put request for the fileslice and update dydb with one call
-	var writeRequests []types.WriteRequest
-
-	var syncResponses []manifestFile.FileStatusDTO
-
-	// Iterate over files in the fileSlice array and create writeRequests.
-	var nrFilesUpdated int
-	var nrFilesRemoved int
-	for _, file := range fileSlice {
-		// Get existing status for file in dydb, Unknown if does not exist
-		var request *types.WriteRequest
-		var setStatus manifestFile.Status
-		if forceStatus == nil {
-			curStatus, err := q.statusForFileItem(ctx, tableName, manifestId, &file)
-			if err != nil {
-				log.WithFields(
-					log.Fields{
-						"manifest_id": manifestId,
-						"upload_id":   file.UploadID,
-					},
-				).Error("Unable to check status of existing upload file.")
-				return nil, errors.New("unable to check status of existing upload file")
-			}
-
-			// Determine the sync action based on provided status and current status.
-			request, setStatus, err = GetWriteRequest(manifestId, file, curStatus)
-			if err != nil {
-				log.WithFields(
-					log.Fields{
-						"manifest_id": manifestId,
-						"upload_id":   file.UploadID,
-					},
-				).Error("Unable to get action for upload file.")
-				return nil, errors.New("unable to get action for upload file")
-			}
-		} else {
-
-			isInProgress := forceStatus.IsInProgress()
-			item := dydb.ManifestFileTable{
-				ManifestId:     manifestId,
-				UploadId:       file.UploadID,
-				FilePath:       file.TargetPath,
-				FileName:       file.TargetName,
-				Status:         forceStatus.String(),
-				MergePackageId: file.MergePackageId,
-				FileType:       file.FileType,
-			}
-
-			if len(isInProgress) > 0 {
-				item.InProgress = isInProgress
-			}
-
-			data, err := attributevalue.MarshalMap(item)
-			if err != nil {
-				log.WithFields(
-					log.Fields{
-						"manifest_id": manifestId,
-						"upload_id":   file.UploadID,
-					},
-				).Fatalf("MarshalMap: %v\n", err)
-			}
-			if len(isInProgress) == 0 {
-				delete(data, "InProgress")
-			}
-
-			request = &types.WriteRequest{
-				PutRequest: &types.PutRequest{
-					Item: data,
-				},
-			}
-
-			setStatus = *forceStatus
-		}
-
-		// If action requires dydb actionm add request to array of requests
-		if request != nil {
-			writeRequests = append(writeRequests, *request)
-		}
-
-		// Set the API response object for the file.
-		syncResponses = append(syncResponses, manifestFile.FileStatusDTO{
-			UploadId: file.UploadID,
-			Status:   setStatus,
-		})
-	}
-
-	var failedFiles []string
-	var err error
-	if len(writeRequests) > 0 {
-		// Format requests and call DynamoDB
-		requestItems := map[string][]types.WriteRequest{
-			tableName: writeRequests,
-		}
-
-		params := dynamodb.BatchWriteItemInput{
-			RequestItems:                requestItems,
-			ReturnConsumedCapacity:      "NONE",
-			ReturnItemCollectionMetrics: "NONE",
-		}
-
-		// Write files to upload file dynamobd table
-		data, err := q.db.BatchWriteItem(ctx, &params)
-		if err != nil {
-			log.WithFields(
-				log.Fields{
-					"manifest_id": manifestId,
-				},
-			).Fatalln("Unable to Batch Write: ", err)
-		}
-
-		nrFilesUpdated += len(writeRequests) - len(data.UnprocessedItems)
-
-		// Handle potential failed files:
-		// Step 1: Retry if there are unprocessed files.
-		nrRetries := 5
-		retryIndex := 0
-		unProcessedItems := data.UnprocessedItems
-		for len(unProcessedItems) > 0 {
-			log.Debug("CONTAINS UNPROCESSED DATA", unProcessedItems)
-			params = dynamodb.BatchWriteItemInput{
-				RequestItems:                unProcessedItems,
-				ReturnConsumedCapacity:      "NONE",
-				ReturnItemCollectionMetrics: "NONE",
-			}
-
-			data, err = q.db.BatchWriteItem(context.Background(), &params)
-			if err != nil {
-				log.WithFields(
-					log.Fields{
-						"manifest_id": manifestId,
-					},
-				).Fatalln("Unable to Batch Write: ", err)
-			}
-
-			nrFilesUpdated += len(unProcessedItems) - len(data.UnprocessedItems)
-
-			unProcessedItems = data.UnprocessedItems
-
-			retryIndex++
-			if retryIndex == nrRetries {
-				log.Warn("Dynamodb did not ingest all the file records.")
-				break
-			}
-			time.Sleep(time.Duration(200*(1+retryIndex)) * time.Millisecond)
-		}
-
-		// Step 2: Set the failedFiles array to return failed update to client.
-		if len(unProcessedItems) > 0 {
-			// Create list of uploadIds that failed to be created in table
-			putRequestList := unProcessedItems[tableName]
-			for _, f := range putRequestList {
-				item := f.PutRequest.Item
-				fileEntry := dydb.ManifestFileTable{}
-				err = attributevalue.UnmarshalMap(item, &fileEntry)
-				if err != nil {
-					log.Error("Unable to UnMarshall unprocessed items. ", err)
-					return nil, err
-				}
-				failedFiles = append(failedFiles, fileEntry.UploadId)
-			}
-
-			// Remove failed files from syncResponse
-			syncResponses = removeFailedFilesFromResponse(failedFiles, syncResponses)
-		}
-
-	}
-
-	response := manifest.AddFilesStats{
-		NrFilesUpdated: nrFilesUpdated,
-		NrFilesRemoved: nrFilesRemoved,
-		FileStatus:     syncResponses,
-		FailedFiles:    failedFiles,
-	}
-	return &response, err
-}
-
 // UpdateFileTableStatus updates the status of the file in the file-table dydb
 func (q *Queries) UpdateFileTableStatus(ctx context.Context, tableName string, manifestId string, uploadId string, status manifestFile.Status, msg string) error {
 
-	_, err := q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-		TableName: aws.String(tableName),
-		Key: map[string]types.AttributeValue{
-			"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
-			"UploadId":   &types.AttributeValueMemberS{Value: uploadId},
-		},
-		UpdateExpression: aws.String("set #status = :statusValue, #msg = :msgValue"),
-		ExpressionAttributeNames: map[string]string{
-			"#status": "Status",
-			"#msg":    "Message",
-		},
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":statusValue": &types.AttributeValueMemberS{Value: status.String()},
-			":msgValue":    &types.AttributeValueMemberS{Value: msg},
-		},
-	})
+	inProgressStatuses := []string{
+		manifestFile.Imported.String(),
+		manifestFile.Verified.String(),
+		manifestFile.Verified.String(),
+	}
+
+	// Depending on status, either set/remove the in-progress flag
+	var err error
+	if stringInSlice(status.String(), inProgressStatuses) {
+		_, err = q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+			TableName: aws.String(tableName),
+			Key: map[string]types.AttributeValue{
+				"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
+				"UploadId":   &types.AttributeValueMemberS{Value: uploadId},
+			},
+			UpdateExpression: aws.String("SET #status = :statusValue, #msg = :msgValue REMOVE #inProgress"),
+			ExpressionAttributeNames: map[string]string{
+				"#status":     "Status",
+				"#msg":        "Message",
+				"#inProgress": "InProgress",
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":statusValue": &types.AttributeValueMemberS{Value: status.String()},
+				":msgValue":    &types.AttributeValueMemberS{Value: msg},
+			},
+		})
+	} else {
+		_, err = q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+			TableName: aws.String(tableName),
+			Key: map[string]types.AttributeValue{
+				"ManifestId": &types.AttributeValueMemberS{Value: manifestId},
+				"UploadId":   &types.AttributeValueMemberS{Value: uploadId},
+			},
+			UpdateExpression: aws.String("SET #inProgress = :inProgressValue, #status = :statusValue, #msg = :msgValue"),
+			ExpressionAttributeNames: map[string]string{
+				"#status":     "Status",
+				"#msg":        "Message",
+				"#inProgress": "InProgress",
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":statusValue":     &types.AttributeValueMemberS{Value: status.String()},
+				":msgValue":        &types.AttributeValueMemberS{Value: msg},
+				":inProgressValue": &types.AttributeValueMemberS{Value: "x"},
+			},
+		})
+	}
+
 	return err
 }
 
@@ -286,7 +139,7 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 	switch status.Valid {
 	case true:
 		if status.String == "InProgress" {
-			// Query from Status index
+			// Query from InProgressIndex index
 			queryInput = dynamodb.QueryInput{
 				TableName:              aws.String(tableName),
 				IndexName:              aws.String("InProgressIndex"),
@@ -349,8 +202,10 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 	return items, result.LastEvaluatedKey, nil
 }
 
-// AddFiles manages the workers and defines the go routines to add files to upload db.
-func (q *Queries) AddFiles(manifestId string, items []manifestFile.FileDTO, forceStatus *manifestFile.Status, fileNameTable string) *manifest.AddFilesStats {
+// SyncFiles manages the workers and defines the go routines to add files to upload db.
+func (q *Queries) SyncFiles(manifestId string, items []manifestFile.FileDTO, forceStatus *manifestFile.Status, tableName string, fileNameTable string) *manifest.AddFilesStats {
+
+	// This method puts all items on a channel and starts multiple workers to process the items.
 
 	// Populate DynamoDB with concurrent workers.
 	walker := make(fileWalk, batchSize)
@@ -380,7 +235,7 @@ func (q *Queries) AddFiles(manifestId string, items []manifestFile.FileDTO, forc
 		log.Debug("starting worker:", w2)
 
 		go func() {
-			stats, _ := q.createOrUpdateFile(w2, walker, manifestId, forceStatus, fileNameTable)
+			stats, _ := q.syncWorker(w2, walker, manifestId, forceStatus, tableName, fileNameTable)
 			result <- *stats
 			defer func() {
 				log.Debug("Closing Worker: ", w2)
@@ -405,6 +260,8 @@ func (q *Queries) AddFiles(manifestId string, items []manifestFile.FileDTO, forc
 }
 
 // PRIVATE METHODS
+
+// statusForFileItem returns the status for a particular manifest file.
 func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manifestId string, file *manifestFile.FileDTO) (manifestFile.Status, error) {
 	// Get current status in db if exist
 	getItemInput := &dynamodb.GetItemInput{
@@ -434,12 +291,12 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 	return manifestFile.Unknown, nil
 }
 
-// createOrUpdateFile is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
-func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, fileTableName string) (*manifest.AddFilesStats, error) {
+// syncWorker is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
+func (q *Queries) syncWorker(workerId int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, tableName string, fileTableName string) (*manifest.AddFilesStats, error) {
 
-	//store := dydb.NewDynamoStore(s.Client)
+	// This is a syncWorker which grabs a set of items from the channel and syncs the files.
+
 	ctx := context.Background()
-
 	response := manifest.AddFilesStats{}
 
 	// Create file slice of size "batchSize" or smaller if end of list.
@@ -449,7 +306,7 @@ func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId 
 
 		// When the number of items in fileSize matches the batchSize --> make call to update dydb
 		if len(fileSlice) == batchSize {
-			stats, _ := q.SyncFiles(ctx, fileTableName, manifestId, fileSlice, forceStatus)
+			stats, _ := q.syncUpdate(ctx, tableName, fileTableName, manifestId, fileSlice, forceStatus)
 			fileSlice = nil
 
 			response.NrFilesUpdated += stats.NrFilesUpdated
@@ -461,7 +318,7 @@ func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId 
 
 	// Add final partially filled fileSlice to database
 	if fileSlice != nil {
-		stats, _ := q.SyncFiles(ctx, fileTableName, manifestId, fileSlice, forceStatus)
+		stats, _ := q.syncUpdate(ctx, tableName, fileTableName, manifestId, fileSlice, forceStatus)
 		response.NrFilesUpdated += stats.NrFilesUpdated
 		response.NrFilesRemoved += stats.NrFilesRemoved
 		response.FailedFiles = append(response.FailedFiles, stats.FailedFiles...)
@@ -471,8 +328,193 @@ func (q *Queries) createOrUpdateFile(workerId int32, files fileWalk, manifestId 
 	return &response, nil
 }
 
-// getAction returns the writeRequests for a given fileDTO and current status
-func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status) (*types.WriteRequest, manifestFile.Status, error) {
+// syncUpdate adds or updates files in the manifest file table
+func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableName string, manifestId string,
+	fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
+
+	// Create Batch Put request for the fileslice and update dydb with one call
+	var writeRequests []types.WriteRequest
+	var syncResponses []manifestFile.FileStatusDTO
+
+	// Check that manifest exists
+	_, err := q.GetManifestById(ctx, tableName, manifestId)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"manifest_id": manifestId,
+			},
+		).Error("Manifest does not exist.")
+		return nil, err
+	}
+
+	// Iterate over files in the fileSlice array and create writeRequests.
+	var nrFilesUpdated int
+	var nrFilesRemoved int
+	for _, file := range fileSlice {
+		// Get existing status for file in dydb, Unknown if does not exist
+		var request *types.WriteRequest
+		var setStatus manifestFile.Status
+		if forceStatus == nil {
+			curStatus, err := q.statusForFileItem(ctx, fileTableName, manifestId, &file)
+			if err != nil {
+				log.WithFields(
+					log.Fields{
+						"manifest_id": manifestId,
+						"upload_id":   file.UploadID,
+					},
+				).Error("Unable to check status of existing upload file.")
+				return nil, errors.New("unable to check status of existing upload file")
+			}
+
+			// Determine the sync action based on provided status and current status.
+			request, setStatus, err = getWriteRequest(manifestId, file, curStatus)
+			if err != nil {
+				log.WithFields(
+					log.Fields{
+						"manifest_id": manifestId,
+						"upload_id":   file.UploadID,
+					},
+				).Error("Unable to get action for upload file.")
+				return nil, errors.New("unable to get action for upload file")
+			}
+		} else {
+
+			isInProgress := forceStatus.IsInProgress()
+			item := dydb.ManifestFileTable{
+				ManifestId:     manifestId,
+				UploadId:       file.UploadID,
+				FilePath:       file.TargetPath,
+				FileName:       file.TargetName,
+				Status:         forceStatus.String(),
+				MergePackageId: file.MergePackageId,
+				FileType:       file.FileType,
+			}
+
+			data, err := attributevalue.MarshalMap(item)
+			if err != nil {
+				log.WithFields(
+					log.Fields{
+						"manifest_id": manifestId,
+						"upload_id":   file.UploadID,
+					},
+				).Fatalf("MarshalMap: %v\n", err)
+			}
+			if len(isInProgress) == 0 {
+				delete(data, "InProgress")
+			}
+
+			request = &types.WriteRequest{
+				PutRequest: &types.PutRequest{
+					Item: data,
+				},
+			}
+
+			setStatus = *forceStatus
+		}
+
+		// If action requires dydb actionm add request to array of requests
+		if request != nil {
+			writeRequests = append(writeRequests, *request)
+		}
+
+		// Set the API response object for the file.
+		syncResponses = append(syncResponses, manifestFile.FileStatusDTO{
+			UploadId: file.UploadID,
+			Status:   setStatus,
+		})
+	}
+
+	var failedFiles []string
+	if len(writeRequests) > 0 {
+		// Format requests and call DynamoDB
+		requestItems := map[string][]types.WriteRequest{
+			fileTableName: writeRequests,
+		}
+
+		params := dynamodb.BatchWriteItemInput{
+			RequestItems:                requestItems,
+			ReturnConsumedCapacity:      "NONE",
+			ReturnItemCollectionMetrics: "NONE",
+		}
+
+		// Write files to upload file dynamobd table
+		data, err := q.db.BatchWriteItem(ctx, &params)
+		if err != nil {
+			log.WithFields(
+				log.Fields{
+					"manifest_id": manifestId,
+				},
+			).Fatalln("Unable to Batch Write: ", err)
+		}
+
+		nrFilesUpdated += len(writeRequests) - len(data.UnprocessedItems)
+
+		// Handle potential failed files:
+		// Step 1: Retry if there are unprocessed files.
+		nrRetries := 5
+		retryIndex := 0
+		unProcessedItems := data.UnprocessedItems
+		for len(unProcessedItems) > 0 {
+			log.Debug("CONTAINS UNPROCESSED DATA", unProcessedItems)
+			params = dynamodb.BatchWriteItemInput{
+				RequestItems:                unProcessedItems,
+				ReturnConsumedCapacity:      "NONE",
+				ReturnItemCollectionMetrics: "NONE",
+			}
+
+			data, err = q.db.BatchWriteItem(context.Background(), &params)
+			if err != nil {
+				log.WithFields(
+					log.Fields{
+						"manifest_id": manifestId,
+					},
+				).Fatalln("Unable to Batch Write: ", err)
+			}
+
+			nrFilesUpdated += len(unProcessedItems) - len(data.UnprocessedItems)
+
+			unProcessedItems = data.UnprocessedItems
+
+			retryIndex++
+			if retryIndex == nrRetries {
+				log.Warn("Dynamodb did not ingest all the file records.")
+				break
+			}
+			time.Sleep(time.Duration(200*(1+retryIndex)) * time.Millisecond)
+		}
+
+		// Step 2: Set the failedFiles array to return failed update to client.
+		if len(unProcessedItems) > 0 {
+			// Create list of uploadIds that failed to be created in table
+			putRequestList := unProcessedItems[fileTableName]
+			for _, f := range putRequestList {
+				item := f.PutRequest.Item
+				fileEntry := dydb.ManifestFileTable{}
+				err = attributevalue.UnmarshalMap(item, &fileEntry)
+				if err != nil {
+					log.Error("Unable to UnMarshall unprocessed items. ", err)
+					return nil, err
+				}
+				failedFiles = append(failedFiles, fileEntry.UploadId)
+			}
+
+			// Remove failed files from syncResponse
+			syncResponses = removeFailedFilesFromResponse(failedFiles, syncResponses)
+		}
+
+	}
+
+	response := manifest.AddFilesStats{
+		NrFilesUpdated: nrFilesUpdated,
+		NrFilesRemoved: nrFilesRemoved,
+		FileStatus:     syncResponses,
+		FailedFiles:    failedFiles,
+	}
+	return &response, err
+}
+
+// getWriteRequest returns the writeRequests for a given fileDTO and current status
+func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus manifestFile.Status) (*types.WriteRequest, manifestFile.Status, error) {
 
 	/*
 		serverside status: sync, imported, finalized, verified, failed
@@ -581,7 +623,6 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 		case manifestFile.Registered, manifestFile.Failed, manifestFile.Unknown:
 			// server is synced, failed, unknown --> add/update the entry in dydb
 			item.Status = manifestFile.Registered.String()
-			item.InProgress = "x"
 
 			data, err := attributevalue.MarshalMap(item)
 			if err != nil {
@@ -592,6 +633,7 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 					},
 				).Fatalf("MarshalMap: %v\n", err)
 			}
+
 			request := types.WriteRequest{
 				PutRequest: &types.PutRequest{
 					Item: data,
@@ -632,14 +674,13 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 			return nil, curStatus, nil
 
 		}
-	case manifestFile.Registered, manifestFile.Unknown:
+	case manifestFile.Registered, manifestFile.Changed, manifestFile.Unknown:
 
 		switch curStatus {
 		case manifestFile.Registered:
 			// server is synced --> update dynamobd in case target path has changed
 
 			item.Status = manifestFile.Registered.String()
-			item.InProgress = "x"
 
 			data, err := attributevalue.MarshalMap(item)
 			if err != nil {
@@ -688,20 +729,18 @@ func GetWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 		return nil, curStatus, nil
 
 	default:
-		return nil, curStatus, nil
+		log.WithFields(
+			log.Fields{
+				"manifest_id": manifestId,
+				"upload_id":   file.UploadID,
+			},
+		).Error("Unhandled case in getAction for file.")
+		return nil, manifestFile.Unknown, errors.New("unhandled case in getAction")
 	}
-
-	log.WithFields(
-		log.Fields{
-			"manifest_id": manifestId,
-			"upload_id":   file.UploadID,
-		},
-	).Error("Unhandled case in getAction for file.")
-	return nil, manifestFile.Unknown, errors.New("unhandled case in getAction")
 
 }
 
-// RemoveFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dydb
+// removeFailedFilesFromResponse removes any files from the syncResponse that has not been successfully created in dydb
 func removeFailedFilesFromResponse(failedRequests []string, syncResponses []manifestFile.FileStatusDTO) []manifestFile.FileStatusDTO {
 
 	var newResponses []manifestFile.FileStatusDTO

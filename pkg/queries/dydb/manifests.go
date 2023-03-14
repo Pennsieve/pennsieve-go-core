@@ -53,7 +53,7 @@ func (q *Queries) CreateManifest(ctx context.Context, manifestTableName string, 
 				"user_id":         item.UserId,
 			},
 		).Error(fmt.Sprintf("Error creating upload: %v\n", err))
-		return errors.New("Error creating Manifest")
+		return errors.New("error creating Manifest")
 	}
 
 	return nil
@@ -88,7 +88,8 @@ func (q *Queries) GetManifestById(ctx context.Context, manifestTableName string,
 }
 
 // GetManifestsForDataset returns all manifests for a given dataset.
-func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName string, datasetNodeId string) ([]dydb.ManifestTable, error) {
+func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName string,
+	datasetNodeId string) ([]dydb.ManifestTable, error) {
 
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(manifestTableName),
@@ -119,7 +120,8 @@ func (q *Queries) GetManifestsForDataset(ctx context.Context, manifestTableName 
 }
 
 // CheckUpdateManifestStatus checks current status of Manifest and updates if necessary.
-func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTableName string, manifestTableName string, m *dydb.ManifestTable) (manifest.Status, error) {
+func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTableName string, manifestTableName string,
+	manifestId string, currentStatus string) (manifest.Status, error) {
 
 	// Check if there are any remaining items for manifest and
 	// set manifest status if not
@@ -131,20 +133,20 @@ func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTab
 	setStatus := manifest.Initiated
 
 	remaining, _, err := q.GetFilesPaginated(ctx, manifestFileTableName,
-		m.ManifestId, reqStatus, 1, nil)
+		manifestId, reqStatus, 1, nil)
 	if err != nil {
 		return setStatus, err
 	}
 
 	if len(remaining) == 0 {
 		setStatus = manifest.Completed
-		err = q.updateManifestStatus(ctx, manifestTableName, m.ManifestId, setStatus)
+		err = q.updateManifestStatus(ctx, manifestTableName, manifestId, setStatus)
 		if err != nil {
 			return setStatus, err
 		}
-	} else if m.Status == "Completed" {
+	} else if currentStatus == "Completed" {
 		setStatus = manifest.Uploading
-		err = q.updateManifestStatus(ctx, manifestTableName, m.ManifestId, setStatus)
+		err = q.updateManifestStatus(ctx, manifestTableName, manifestId, setStatus)
 		if err != nil {
 			return setStatus, err
 		}
