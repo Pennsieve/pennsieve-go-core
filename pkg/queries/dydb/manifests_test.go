@@ -56,8 +56,8 @@ func testGetManifestsForDataset(t *testing.T, client *DynamoStore) {
 	assert.Equal(t, 2, len(out), "Incorrect number of manifests returned")
 
 	// Return empty array for dataset without manifests
-	nonExisitingNodeId := "No:Dataset"
-	out, err = client.GetManifestsForDataset(ctx, manifestTableName, nonExisitingNodeId)
+	nonExistingNodeId := "No:Dataset"
+	out, err = client.GetManifestsForDataset(ctx, manifestTableName, nonExistingNodeId)
 	assert.Nil(t, err, "Manifest could not be fetched")
 	assert.Equal(t, 0, len(out), "Incorrect number of manifests returned")
 
