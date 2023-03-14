@@ -32,14 +32,14 @@ func (q *Queries) CreateManifest(ctx context.Context, manifestTableName string, 
 
 	getRequest := dynamodb.GetItemInput{
 		Key:       data,
-		TableName: aws.String("manifestTableName"),
+		TableName: aws.String(manifestTableName),
 	}
 	result, _ := q.db.GetItem(ctx, &getRequest)
 	if result != nil {
 		return errors.New("manifest with provided ID already exists")
 	}
 
-	_, err = q.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = q.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(manifestTableName),
 		Item:      data,
 	})

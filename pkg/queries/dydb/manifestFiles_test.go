@@ -59,8 +59,8 @@ func testSyncFiles(t *testing.T, client *DynamoStore) {
 	})
 	assert.NoError(t, err)
 	//
-	stats := client.SyncFiles(manifestId, dtos, nil, manifestTableName, manifestFileTableName)
-	//assert.Nil(t, err, "Manifest files could not be added")
+	stats, err := client.SyncFiles(manifestId, dtos, nil, manifestTableName, manifestFileTableName)
+	assert.Nil(t, err, "Manifest files could not be added")
 	assert.Equal(t, 3, stats.NrFilesUpdated, "Number of files updated does not match")
 
 	out, err := client.GetManifestFile(ctx, manifestFileTableName, manifestId, "1")

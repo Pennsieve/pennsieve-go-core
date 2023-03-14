@@ -203,9 +203,21 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 }
 
 // SyncFiles manages the workers and defines the go routines to add files to upload db.
-func (q *Queries) SyncFiles(manifestId string, items []manifestFile.FileDTO, forceStatus *manifestFile.Status, tableName string, fileNameTable string) *manifest.AddFilesStats {
+func (q *Queries) SyncFiles(manifestId string, items []manifestFile.FileDTO, forceStatus *manifestFile.Status, tableName string, fileNameTable string) (*manifest.AddFilesStats, error) {
 
 	// This method puts all items on a channel and starts multiple workers to process the items.
+
+	// Check that manifest exists
+	ctx := context.Background()
+	_, err := q.GetManifestById(ctx, tableName, manifestId)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"manifest_id": manifestId,
+			},
+		).Error("Manifest does not exist.")
+		return nil, errors.New(fmt.Sprintf("manifest with id: %s does not exist. original error: %v", manifestId, err))
+	}
 
 	// Populate DynamoDB with concurrent workers.
 	walker := make(fileWalk, batchSize)
@@ -235,7 +247,7 @@ func (q *Queries) SyncFiles(manifestId string, items []manifestFile.FileDTO, for
 		log.Debug("starting worker:", w2)
 
 		go func() {
-			stats, _ := q.syncWorker(w2, walker, manifestId, forceStatus, tableName, fileNameTable)
+			stats, _ := q.syncWorker(w2, walker, manifestId, forceStatus, fileNameTable)
 			result <- *stats
 			defer func() {
 				log.Debug("Closing Worker: ", w2)
@@ -255,7 +267,7 @@ func (q *Queries) SyncFiles(manifestId string, items []manifestFile.FileDTO, for
 		resp.FailedFiles = append(resp.FailedFiles, r.FailedFiles...)
 	}
 
-	return &resp
+	return &resp, nil
 
 }
 
@@ -292,7 +304,7 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 }
 
 // syncWorker is run in a goroutine and grabs set of files from channel and calls updateDynamoDb.
-func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, tableName string, fileTableName string) (*manifest.AddFilesStats, error) {
+func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceStatus *manifestFile.Status, fileTableName string) (*manifest.AddFilesStats, error) {
 
 	// This is a syncWorker which grabs a set of items from the channel and syncs the files.
 
@@ -306,7 +318,7 @@ func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceSt
 
 		// When the number of items in fileSize matches the batchSize --> make call to update dydb
 		if len(fileSlice) == batchSize {
-			stats, _ := q.syncUpdate(ctx, tableName, fileTableName, manifestId, fileSlice, forceStatus)
+			stats, _ := q.syncUpdate(ctx, fileTableName, manifestId, fileSlice, forceStatus)
 			fileSlice = nil
 
 			response.NrFilesUpdated += stats.NrFilesUpdated
@@ -318,7 +330,7 @@ func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceSt
 
 	// Add final partially filled fileSlice to database
 	if fileSlice != nil {
-		stats, _ := q.syncUpdate(ctx, tableName, fileTableName, manifestId, fileSlice, forceStatus)
+		stats, _ := q.syncUpdate(ctx, fileTableName, manifestId, fileSlice, forceStatus)
 		response.NrFilesUpdated += stats.NrFilesUpdated
 		response.NrFilesRemoved += stats.NrFilesRemoved
 		response.FailedFiles = append(response.FailedFiles, stats.FailedFiles...)
@@ -329,23 +341,12 @@ func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceSt
 }
 
 // syncUpdate adds or updates files in the manifest file table
-func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableName string, manifestId string,
+func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifestId string,
 	fileSlice []manifestFile.FileDTO, forceStatus *manifestFile.Status) (*manifest.AddFilesStats, error) {
 
 	// Create Batch Put request for the file-slice and update dydb with one call
 	var writeRequests []types.WriteRequest
 	var syncResponses []manifestFile.FileStatusDTO
-
-	// Check that manifest exists
-	_, err := q.GetManifestById(ctx, tableName, manifestId)
-	if err != nil {
-		log.WithFields(
-			log.Fields{
-				"manifest_id": manifestId,
-			},
-		).Error("Manifest does not exist.")
-		return nil, err
-	}
 
 	// Iterate over files in the fileSlice array and create writeRequests.
 	var nrFilesUpdated int
@@ -510,7 +511,7 @@ func (q *Queries) syncUpdate(ctx context.Context, tableName string, fileTableNam
 		FileStatus:     syncResponses,
 		FailedFiles:    failedFiles,
 	}
-	return &response, err
+	return &response, nil
 }
 
 // getWriteRequest returns the writeRequests for a given fileDTO and current status
