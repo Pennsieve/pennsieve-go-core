@@ -28,13 +28,13 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 		"VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)"
 
 	sqlParentId := sql.NullInt64{Valid: false}
-	constraintName := "(name,dataset_id,\"type\") WHERE parent_id IS NULL"
+	constraintName := "(name,dataset_id) WHERE parent_id IS NULL"
 	if r.ParentId >= 0 {
 		sqlParentId = sql.NullInt64{
 			Int64: r.ParentId,
 			Valid: true,
 		}
-		constraintName = "(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL"
+		constraintName = "(name,dataset_id,parent_id) WHERE parent_id IS NOT NULL"
 	}
 
 	var values []interface{}
@@ -87,8 +87,8 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 }
 
 // AddPackages adds packages to a dataset.
-// 	* This call should typically be wrapped in a Transaction as it will run multiple queries.
-// 	* Packages can be in different folders, but it is assumed that the folders already exist.
+//   - This call should typically be wrapped in a Transaction as it will run multiple queries.
+//   - Packages can be in different folders, but it is assumed that the folders already exist.
 func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams) ([]pgdb.Package, error) {
 	var allInsertedPackages []pgdb.Package
 
@@ -230,8 +230,8 @@ func (q *Queries) GetPackageByNodeId(ctx context.Context, nodeId string) (*pgdb.
 // PRIVATE
 // AddPackages runs the query to insert a set of packages that belong to the same parent folder.
 // It returns two arrays:
-// 		1) successfully created packages,
-//		2) packages that failed to be inserted due to a name constraint.
+//  1. successfully created packages,
+//  2. packages that failed to be inserted due to a name constraint.
 func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, []pgdb.PackageParams, error) {
 
 	log.Debug(fmt.Sprintf("ADD PACKAGES: %v", records))
@@ -261,13 +261,13 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 
 	// Convert parentId to sql.null int64 (root folder is -1 in params, but nil in table)
 	sqlParentId := sql.NullInt64{Valid: false}
-	constraintStr := "(name,dataset_id,\"type\") WHERE parent_id IS NULL"
+	constraintStr := "(name,dataset_id) WHERE parent_id IS NULL"
 	if parentId >= 0 {
 		sqlParentId = sql.NullInt64{
 			Int64: parentId,
 			Valid: true,
 		}
-		constraintStr = "(name,dataset_id,\"type\",parent_id) WHERE parent_id IS NOT NULL"
+		constraintStr = "(name,dataset_id,parent_id) WHERE parent_id IS NOT NULL"
 	}
 
 	sqlInsert := "INSERT INTO packages(name, type, state, node_id, parent_id, " +
