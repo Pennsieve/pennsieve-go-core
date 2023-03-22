@@ -194,8 +194,10 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 		mFile := dydb.ManifestFileTable{}
 		err = attributevalue.UnmarshalMap(item, &mFile)
 		if err != nil {
+			fmt.Println("This is an error")
 			return nil, nil, fmt.Errorf("UnmarshalMap: %v\n", err)
 		}
+		fmt.Println("UploadID:", mFile.UploadId)
 		items = append(items, mFile)
 	}
 
@@ -330,7 +332,11 @@ func (q *Queries) syncWorker(_ int32, files fileWalk, manifestId string, forceSt
 
 	// Add final partially filled fileSlice to database
 	if fileSlice != nil {
-		stats, _ := q.syncUpdate(ctx, fileTableName, manifestId, fileSlice, forceStatus)
+		log.Debug(fmt.Sprintf("adding file-slice with length: %d", len(fileSlice)))
+		stats, err := q.syncUpdate(ctx, fileTableName, manifestId, fileSlice, forceStatus)
+		if err != nil {
+			log.Error(fmt.Sprintf("cannot sync file-slice with error: %v", err))
+		}
 		response.NrFilesUpdated += stats.NrFilesUpdated
 		response.NrFilesRemoved += stats.NrFilesRemoved
 		response.FailedFiles = append(response.FailedFiles, stats.FailedFiles...)
@@ -352,6 +358,8 @@ func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifest
 	var nrFilesUpdated int
 	var nrFilesRemoved int
 	for _, file := range fileSlice {
+		log.Debug(fmt.Sprintf("adding file: %v", file))
+
 		// Get existing status for file in dydb, Unknown if it does not exist
 		var request *types.WriteRequest
 		var setStatus manifestFile.Status
@@ -415,6 +423,7 @@ func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifest
 
 		// If action requires dydb action add request to array of requests
 		if request != nil {
+			log.Debug("request is not empty")
 			writeRequests = append(writeRequests, *request)
 		}
 
@@ -427,6 +436,8 @@ func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifest
 
 	var failedFiles []string
 	if len(writeRequests) > 0 {
+		log.Debug("Have writeRequests to put into dynamodb.")
+
 		// Format requests and call DynamoDB
 		requestItems := map[string][]types.WriteRequest{
 			fileTableName: writeRequests,

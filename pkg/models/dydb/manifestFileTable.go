@@ -1,5 +1,7 @@
 package dydb
 
+import "reflect"
+
 // ManifestFileTable is a representation of a ManifestFile in DynamoDB
 type ManifestFileTable struct {
 	ManifestId     string `dynamodbav:"ManifestId"`
@@ -15,4 +17,28 @@ type ManifestFileTable struct {
 type ManifestFilePrimaryKey struct {
 	ManifestId string `dynamodbav:"ManifestId"`
 	UploadId   string `dynamodbav:"UploadId"`
+}
+
+func (m ManifestFileTable) GetHeaders() []string {
+	t := reflect.TypeOf(m)
+
+	header := make([]string, t.NumField())
+	for i := range header {
+		header[i] = t.Field(i).Name
+	}
+
+	return header
+}
+
+func (m ManifestFileTable) ToSlice() []string {
+	return []string{
+		m.ManifestId,
+		m.UploadId,
+		m.FilePath,
+		m.FileName,
+		m.MergePackageId,
+		m.Status,
+		m.FileType,
+		m.InProgress,
+	}
 }

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	"github.com/pennsieve/pennsieve-go-core/pkg/test"
+	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

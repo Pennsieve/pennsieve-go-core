@@ -2,7 +2,7 @@ package pgdb
 
 import (
 	"context"
-	"github.com/pennsieve/pennsieve-go-core/pkg/test"
+	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

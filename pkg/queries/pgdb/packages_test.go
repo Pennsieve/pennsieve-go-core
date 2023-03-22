@@ -9,7 +9,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	"github.com/pennsieve/pennsieve-go-core/pkg/test"
+	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -260,7 +260,7 @@ func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {
 	defer test.Truncate(t, store.db, orgId, "packages")
 
 	// Test adding packages to root
-	testParams := []test.TestPackageParams{
+	testParams := []test.PackageParams{
 		{Name: "package_1.txt", ParentId: -1},
 		{Name: "package_2.txt", ParentId: -1},
 		{Name: "package_3.txt", ParentId: -1},
@@ -275,7 +275,7 @@ func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {
 	assert.Len(t, results, 5, "Expect to return 5 packages")
 
 	// Test inserting package with existing Name
-	testParams = []test.TestPackageParams{
+	testParams = []test.PackageParams{
 		{Name: "package_1.txt", ParentId: -1}}
 
 	insertParams = test.GenerateTestPackages(testParams, 1)
@@ -334,7 +334,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 
 	// Test adding packages to root
-	testParams := []test.TestPackageParams{
+	testParams := []test.PackageParams{
 		{Name: "package_1.txt", ParentId: result.Id},
 		{Name: "package_2.txt", ParentId: result.Id},
 		{Name: "package_3.txt", ParentId: result.Id},
@@ -349,7 +349,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.Len(t, results, 5, "Expect to return 5 packages")
 
 	// TEST PROVIDED PARENT ID DOES NOT MATCH ALL PARENT IDs
-	testParams = []test.TestPackageParams{
+	testParams = []test.PackageParams{
 		{Name: "package_6.txt", ParentId: result.Id},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
@@ -359,7 +359,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.Nil(t, failedPackages)
 
 	// TEST MIXED PARENT ID SHOULD FAIL
-	testParams = []test.TestPackageParams{
+	testParams = []test.PackageParams{
 		{Name: "package_1.txt", ParentId: result.Id},
 		{Name: "package_2.txt", ParentId: -1},
 	}
@@ -370,7 +370,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.Nil(t, failedPackages)
 
 	// TEST NAMING CONFLICT
-	testParams = []test.TestPackageParams{
+	testParams = []test.PackageParams{
 		{Name: "package_1.txt", ParentId: result.Id},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
@@ -421,7 +421,7 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 
 	// Test adding packages to root
-	testParams := []test.TestPackageParams{
+	testParams := []test.PackageParams{
 		{Name: "package_1.txt", ParentId: -1},
 		{Name: "package_2.txt", ParentId: -1},
 		{Name: "package_3.txt", ParentId: folder1.Id},
@@ -464,7 +464,7 @@ func testAddingMixedParentPackages(t *testing.T, store *SQLStore, orgId int) {
 	}
 
 	// TEST ADDING DOUBLE DUPLICATE
-	testParams = []test.TestPackageParams{
+	testParams = []test.PackageParams{
 		{Name: "package_5.txt", ParentId: folder2.Id},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
