@@ -15,6 +15,13 @@ func TestMain(m *testing.M) {
 
 	testDB = make(map[int]*sql.DB)
 
+	db0, err := ConnectENV()
+	if err != nil {
+		log.Fatal("cannot connect to db:", err)
+	}
+	testDB[0] = db0
+	addUsers(db0)
+
 	db1, err := ConnectENVWithOrg(1)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
@@ -31,6 +38,22 @@ func TestMain(m *testing.M) {
 	testDB[3] = db2
 
 	os.Exit(m.Run())
+}
+
+func addUsers(db *sql.DB) {
+	var err error
+
+	_, err = db.Exec("INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
+		" VALUES (1001, 'N:user:1', 'user1@pennsieve.org', 'first', 'user', 1, '11111111-1111-1111-1111-111111111111', 'f')")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add user (1) for test: %v", err))
+	}
+
+	_, err = db.Exec("INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
+		" VALUES (1002, 'N:user:2', 'user2@pennsieve.org', 'second', 'user', 1, '22222222-2222-2222-2222-222222222222', 'f')")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add user (2) for test: %v", err))
+	}
 }
 
 func addDataset(db *sql.DB) {
