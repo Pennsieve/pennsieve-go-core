@@ -10,7 +10,8 @@ import (
 
 // GetDefaultDataUseAgreement will return the default data use agreement for the organization.
 func (q *Queries) GetDefaultDataUseAgreement(ctx context.Context, organizationId int) (*pgdb.DataUseAgreement, error) {
-	query := fmt.Sprintf("SELECT * FROM \"%d\".data_use_agreements where is_default = true;", organizationId)
+	query := fmt.Sprintf("SELECT id, name, body, created_at, is_default, description"+
+		" FROM \"%d\".data_use_agreements where is_default = true;", organizationId)
 
 	row := q.db.QueryRowContext(ctx, query)
 	dataUseAgreement := pgdb.DataUseAgreement{}
