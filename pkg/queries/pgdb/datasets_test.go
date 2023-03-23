@@ -1,6 +1,7 @@
 package pgdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
@@ -59,4 +60,25 @@ func TestDatasetsInsertSelect(t *testing.T) {
 		}
 	}
 
+}
+
+func TestDatasets(t *testing.T) {
+	for scenario, fn := range map[string]func(
+		tt *testing.T, store *SQLStore, orgId int,
+	){
+		"Get Dataset by Name": testGetDatasetByName,
+	} {
+		t.Run(scenario, func(t *testing.T) {
+			orgId := 1
+			store := NewSQLStore(testDB[orgId])
+			fn(t, store, orgId)
+		})
+	}
+}
+
+func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
+	name := "Test Dataset 2"
+	dataset, err := store.GetDatasetByName(context.TODO(), orgId, name)
+	assert.NoError(t, err)
+	assert.Equal(t, name, dataset.Name)
 }

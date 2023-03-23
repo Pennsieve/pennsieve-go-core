@@ -10,6 +10,44 @@ import (
 	"sort"
 )
 
+type CreateDatasetParams struct {
+	name                         string
+	description                  string
+	datasetState                 string
+	status                       pgdb.DatasetStatus
+	automaticallyProcessPackages bool
+	license                      string
+	tags                         []string
+	dataUseAgreement             pgdb.DataUseAgreement
+}
+
+func (q *Queries) CreateDataset(p CreateDatasetParams) (*pgdb.Dataset, error) {
+	if p.name == "" {
+		return nil, fmt.Errorf("dataset name cannot be empty or null")
+	}
+
+	if len(p.name) > 255 {
+		return nil, fmt.Errorf("dataset name cannot exceed 255 characters")
+	}
+
+	_, err := q.GetDatasetByName(context.TODO(), 0, p.name)
+	if err != nil {
+		return nil, fmt.Errorf("a dataset with the name already exists")
+	}
+
+	return nil, nil
+}
+
+// GetDatasetByName will query workspace datasets by name and return one if found.
+func (q *Queries) GetDatasetByName(ctx context.Context, organizationId int, name string) (*pgdb.Dataset, error) {
+	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
+		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
+		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
+		" FROM \"%d\".datasets WHERE name='%s';", organizationId, name)
+	row := q.db.QueryRowContext(ctx, query)
+	return rowToDataset(row)
+}
+
 // GetDatasets returns all rows in the Upload Record Table
 func (q *Queries) GetDatasets(ctx context.Context, organizationId int) ([]pgdb.Dataset, error) {
 	queryStr := "SELECT (name, state) FROM datasets"
@@ -133,4 +171,47 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 
 	return &claim, nil
 
+}
+
+func rowToDataset(row *sql.Row) (*pgdb.Dataset, error) {
+	var dataset pgdb.Dataset
+
+	err := row.Scan(
+		&dataset.Id,
+		&dataset.Name,
+		&dataset.State,
+		&dataset.Description,
+		&dataset.UpdatedAt,
+		&dataset.CreatedAt,
+		&dataset.NodeId,
+		&dataset.PermissionBit,
+		&dataset.Type,
+		&dataset.Role,
+		&dataset.Status,
+		&dataset.AutomaticallyProcessPackages,
+		&dataset.License,
+		&dataset.Tags,
+		&dataset.Contributors,
+		&dataset.BannerId,
+		&dataset.ReadmeId,
+		&dataset.StatusId,
+		&dataset.PublicationStatusId,
+		&dataset.Size,
+		&dataset.ETag,
+		&dataset.DataUseAgreementId,
+		&dataset.ChangelogId,
+	)
+
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			log.Error("No rows were returned!")
+			return nil, err
+		default:
+			log.Error("Unknown Error while scanning dataset row: ", err)
+			panic(err)
+		}
+	}
+
+	return &dataset, nil
 }
