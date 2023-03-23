@@ -31,11 +31,19 @@ func TestMain(m *testing.M) {
 	// Add stub dataset for testing against other datasets within same org.
 	addDataset(db1)
 
-	db2, err := ConnectENVWithOrg(3)
+	db2, err := ConnectENVWithOrg(2)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
-	testDB[3] = db2
+	testDB[2] = db2
+	addDatasetStatus(db2)
+	addDataUseAgreements(db2)
+
+	db3, err := ConnectENVWithOrg(3)
+	if err != nil {
+		log.Fatal("cannot connect to db:", err)
+	}
+	testDB[3] = db3
 
 	os.Exit(m.Run())
 }
@@ -53,6 +61,30 @@ func addUsers(db *sql.DB) {
 		" VALUES (1002, 'N:user:2', 'user2@pennsieve.org', 'second', 'user', 1, '22222222-2222-2222-2222-222222222222', 'f')")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Unable to add user (2) for test: %v", err))
+	}
+}
+
+func addDatasetStatus(db *sql.DB) {
+	var err error
+	_, err = db.Exec("INSERT INTO dataset_status (id, name, display_name, original_name, color) VALUES (1001, 'Initial_Status', 'Initial Status', 'Initial_Status', '#000000')")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add dataset_status (1) for test: %v", err))
+	}
+	_, err = db.Exec("INSERT INTO dataset_status (id, name, display_name, original_name, color) VALUES (1002, 'Second_Status', 'Second Status', 'Second_Status', '#000000')")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add dataset_status (2) for test: %v", err))
+	}
+}
+
+func addDataUseAgreements(db *sql.DB) {
+	var err error
+	_, err = db.Exec("INSERT INTO data_use_agreements (id, name, body, description, is_default) VALUES (1001, 'Data Use Agreement General', 'Use the data any way you like.', 'for general, unrestricted use', true)")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add data_use_agreements (1) for test: %v", err))
+	}
+	_, err = db.Exec("INSERT INTO data_use_agreements (id, name, body, description, is_default) VALUES (1002, 'Data Use Agreement Restricted', 'Use the data as permitted.', 'requires authorization', false)")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add data_use_agreements (2) for test: %v", err))
 	}
 }
 
