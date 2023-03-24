@@ -56,7 +56,7 @@ func (q *Queries) GetById(ctx context.Context, id int64) (*pgdb.User, error) {
 
 	switch err {
 	case sql.ErrNoRows:
-		fmt.Println("No rows were returned!")
+		log.Error("No rows were returned!")
 		return nil, err
 	case nil:
 		return &user, nil

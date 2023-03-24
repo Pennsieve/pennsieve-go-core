@@ -11,6 +11,7 @@ const (
 	Uploading
 	Completed
 	Cancelled
+	Archived
 )
 
 func (s Status) String() string {
@@ -23,6 +24,8 @@ func (s Status) String() string {
 		return "Completed"
 	case Cancelled:
 		return "Cancelled"
+	case Archived:
+		return "Archived"
 	default:
 		return "Initiated"
 	}
@@ -38,6 +41,8 @@ func (s Status) ManifestStatusMap(value string) Status {
 		return Completed
 	case "Cancelled":
 		return Cancelled
+	case "Archived":
+		return Archived
 	}
 	return Initiated
 }
