@@ -67,6 +67,7 @@ func TestDatasets(t *testing.T) {
 		tt *testing.T, store *SQLStore, orgId int,
 	){
 		"Get Dataset by Name": testGetDatasetByName,
+		"Create Dataset":      testCreateDataset,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -78,7 +79,25 @@ func TestDatasets(t *testing.T) {
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
 	name := "Test Dataset 2"
-	dataset, err := store.GetDatasetByName(context.TODO(), orgId, name)
+	dataset, err := store.GetDatasetByName(context.TODO(), name)
 	assert.NoError(t, err)
 	assert.Equal(t, name, dataset.Name)
+}
+
+func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
+	var err error
+	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
+	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
+	create := CreateDatasetParams{
+		Name:                         "test create Go Core API",
+		Description:                  "dataset creation test",
+		Status:                       defaultDatasetStatus,
+		AutomaticallyProcessPackages: false,
+		License:                      "",
+		Tags:                         nil,
+		DataUseAgreement:             defaultDataUseAgreement,
+	}
+	dataset, err := store.CreateDataset(context.TODO(), create)
+	assert.NoError(t, err)
+	assert.Equal(t, create.Name, dataset.Name)
 }

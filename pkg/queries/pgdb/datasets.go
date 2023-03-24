@@ -5,45 +5,73 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/state"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	log "github.com/sirupsen/logrus"
 	"sort"
 )
 
 type CreateDatasetParams struct {
-	name                         string
-	description                  string
-	datasetState                 string
-	status                       pgdb.DatasetStatus
-	automaticallyProcessPackages bool
-	license                      string
-	tags                         []string
-	dataUseAgreement             pgdb.DataUseAgreement
+	Name                         string
+	Description                  string
+	Status                       *pgdb.DatasetStatus
+	AutomaticallyProcessPackages bool
+	License                      string
+	Tags                         []string
+	DataUseAgreement             *pgdb.DataUseAgreement
 }
 
-func (q *Queries) CreateDataset(p CreateDatasetParams) (*pgdb.Dataset, error) {
-	if p.name == "" {
+func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pgdb.Dataset, error) {
+	var err error
+	if p.Name == "" {
 		return nil, fmt.Errorf("dataset name cannot be empty or null")
 	}
 
-	if len(p.name) > 255 {
+	if len(p.Name) > 255 {
 		return nil, fmt.Errorf("dataset name cannot exceed 255 characters")
 	}
 
-	_, err := q.GetDatasetByName(context.TODO(), 0, p.name)
+	_, err = q.GetDatasetByName(ctx, p.Name)
 	if err != nil {
-		return nil, fmt.Errorf("a dataset with the name already exists")
+		return nil, fmt.Errorf("a dataset with the name \"%s\" already exists", p.Name)
 	}
 
-	return nil, nil
+	datasetNodeId := nodeId.NodeId(nodeId.DataSetCode)
+	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, description, automatically_process_packages" +
+		"status_id, license, tags, data_use_agreement)" +
+		" VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9);")
+
+	_, err = q.db.ExecContext(ctx,
+		statement,
+		p.Name,
+		datasetNodeId,
+		state.READY,
+		p.Description,
+		p.AutomaticallyProcessPackages,
+		p.Status.Id,
+		p.License,
+		p.Tags,
+		p.DataUseAgreement.Id)
+
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
+	}
+
+	dataset, err := q.GetDatasetByName(ctx, p.Name)
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
+	}
+
+	return dataset, nil
 }
 
 // GetDatasetByName will query workspace datasets by name and return one if found.
-func (q *Queries) GetDatasetByName(ctx context.Context, organizationId int, name string) (*pgdb.Dataset, error) {
+func (q *Queries) GetDatasetByName(ctx context.Context, name string) (*pgdb.Dataset, error) {
 	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
 		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
 		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
-		" FROM \"%d\".datasets WHERE name='%s';", organizationId, name)
+		" FROM datasets WHERE name='%s';", name)
 	row := q.db.QueryRowContext(ctx, query)
 	return rowToDataset(row)
 }
