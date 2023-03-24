@@ -190,14 +190,11 @@ func (q *Queries) GetFilesPaginated(ctx context.Context, tableName string, manif
 
 	var items []dydb.ManifestFileTable
 	for _, item := range result.Items {
-		fmt.Println("Hello item: ", item)
 		mFile := dydb.ManifestFileTable{}
 		err = attributevalue.UnmarshalMap(item, &mFile)
 		if err != nil {
-			fmt.Println("This is an error")
 			return nil, nil, fmt.Errorf("UnmarshalMap: %v\n", err)
 		}
-		fmt.Println("UploadID:", mFile.UploadId)
 		items = append(items, mFile)
 	}
 
