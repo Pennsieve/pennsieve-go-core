@@ -140,13 +140,13 @@ func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTab
 
 	if len(remaining) == 0 {
 		setStatus = manifest.Completed
-		err = q.updateManifestStatus(ctx, manifestTableName, manifestId, setStatus)
+		err = q.UpdateManifestStatus(ctx, manifestTableName, manifestId, setStatus)
 		if err != nil {
 			return setStatus, err
 		}
 	} else if currentStatus == "Completed" {
 		setStatus = manifest.Uploading
-		err = q.updateManifestStatus(ctx, manifestTableName, manifestId, setStatus)
+		err = q.UpdateManifestStatus(ctx, manifestTableName, manifestId, setStatus)
 		if err != nil {
 			return setStatus, err
 		}
@@ -157,7 +157,7 @@ func (q *Queries) CheckUpdateManifestStatus(ctx context.Context, manifestFileTab
 }
 
 // UpdateManifestStatus updates the status of the upload in dydb
-func (q *Queries) updateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
+func (q *Queries) UpdateManifestStatus(ctx context.Context, tableName string, manifestId string, status manifest.Status) error {
 
 	_, err := q.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(tableName),
