@@ -9,6 +9,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type OrganizationUserNotFoundError struct {
+	ErrorMessage string
+}
+
+func (e OrganizationUserNotFoundError) Error() string {
+	return fmt.Sprintf("organization user was not found (error: %v)", e.ErrorMessage)
+}
+
 func (q *Queries) GetOrganizationUserById(ctx context.Context, id int64) (*pgdb.OrganizationUser, error) {
 
 	queryStr := "SELECT organization_id, user_id, permission_bit, created_at, updated_at " +
@@ -50,7 +58,7 @@ func (q *Queries) GetOrganizationUser(ctx context.Context, orgId int64, userId i
 	switch err {
 	case sql.ErrNoRows:
 		fmt.Println("No rows were returned!")
-		return nil, err
+		return nil, OrganizationUserNotFoundError{fmt.Sprintf("%+v", err)}
 	case nil:
 		return &orgUser, nil
 	default:
@@ -59,9 +67,27 @@ func (q *Queries) GetOrganizationUser(ctx context.Context, orgId int64, userId i
 }
 
 func (q *Queries) AddOrganizationUser(ctx context.Context, orgId int64, userId int64, permBit pgdb.DbPermission) (*pgdb.OrganizationUser, error) {
+	var err error
+
+	// check for existing user membership in the organization
+	existing, err := q.GetOrganizationUser(ctx, orgId, userId)
+	if err != nil {
+		switch err.(type) {
+		case OrganizationUserNotFoundError:
+			// do nothing
+		default:
+			return nil, err
+		}
+	}
+
+	// the user is already in the organization, return existing membership (do not update)
+	if existing != nil {
+		return existing, nil
+	}
+
 	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
 
-	_, err := q.db.ExecContext(ctx, statement, orgId, userId, permBit)
+	_, err = q.db.ExecContext(ctx, statement, orgId, userId, permBit)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
 	}
