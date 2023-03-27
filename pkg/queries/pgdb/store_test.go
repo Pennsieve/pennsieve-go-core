@@ -39,7 +39,6 @@ func TestMain(m *testing.M) {
 		log.Fatal("cannot connect to db:", err)
 	}
 	testDB[2] = db2
-
 	addDatasetStatus(db2)
 	addDataUseAgreements(db2)
 

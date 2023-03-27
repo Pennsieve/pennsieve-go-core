@@ -21,6 +21,14 @@ func (e DatasetNotFoundError) Error() string {
 	return fmt.Sprintf("dataset was not found (error: %v)", e.ErrorMessage)
 }
 
+type DatasetUserNotFoundError struct {
+	ErrorMessage string
+}
+
+func (e DatasetUserNotFoundError) Error() string {
+	return fmt.Sprintf("dataset user was not found (error: %v)", e.ErrorMessage)
+}
+
 type CreateDatasetParams struct {
 	Name                         string
 	Description                  string
@@ -212,6 +220,73 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 
 	return &claim, nil
 
+}
+
+func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User) (*pgdb.DatasetUser, error) {
+	query := "SELECT dataset_id, user_id, role, created_at, updated_at FROM dataset_user WHERE dataset_id=$1 AND user_id=$2"
+
+	var datasetUser pgdb.DatasetUser
+
+	err := q.db.QueryRowContext(ctx, query, dataset.Id, user.Id).Scan(
+		&datasetUser.DatasetId,
+		&datasetUser.UserId,
+		&datasetUser.Role,
+		&datasetUser.CreatedAt,
+		&datasetUser.UpdatedAt,
+	)
+
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, DatasetUserNotFoundError{fmt.Sprintf("%+v", err)}
+		default:
+			log.Error("Unknown Error while query/scan dataset user table: ", err)
+			panic(err)
+		}
+	}
+
+	return &datasetUser, nil
+}
+
+func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User, role dataset.Role) (*pgdb.DatasetUser, error) {
+	existing, err := q.GetDatasetUser(ctx, dataset, user)
+	if err != nil {
+		switch err.(type) {
+		case DatasetUserNotFoundError:
+			// do nothing
+		default:
+			return nil, err
+		}
+	}
+
+	if existing != nil {
+		return existing, nil
+	}
+
+	statement := "INSERT INTO dataset_user (dataset_id, user_id, role, permission_bit) VALUES ($1, $2, $3, $4)"
+	_, err = q.db.ExecContext(ctx, statement, dataset.Id, user.Id, role, datasetRoleToPermission(role))
+	if err != nil {
+		return nil, err
+	}
+
+	return q.GetDatasetUser(ctx, dataset, user)
+}
+
+func datasetRoleToPermission(role dataset.Role) pgdb.DbPermission {
+	switch role {
+	case dataset.None:
+		return pgdb.NoPermission
+	case dataset.Viewer:
+		return pgdb.Read
+	case dataset.Editor:
+		return pgdb.Delete
+	case dataset.Manager:
+		return pgdb.Administer
+	case dataset.Owner:
+		return pgdb.Owner
+	default:
+		return pgdb.NoPermission
+	}
 }
 
 func scanDataset(row *sql.Row) (*pgdb.Dataset, error) {
