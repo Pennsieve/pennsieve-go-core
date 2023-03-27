@@ -55,18 +55,31 @@ func TestMain(m *testing.M) {
 }
 
 func addUsers(db *sql.DB) {
-	var err error
-
-	_, err = db.Exec("INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
-		" VALUES (1001, 'N:user:1', 'user1@pennsieve.org', 'first', 'user', 1, '11111111-1111-1111-1111-111111111111', 'f')")
-	if err != nil {
-		log.Fatal(fmt.Sprintf("Unable to add user (1) for test: %v", err))
+	type Users struct {
+		userId         int64
+		nodeId         string
+		emailAddress   string
+		firstName      string
+		lastName       string
+		preferredOrgId int64
+		cognitoId      string
+		isSuperAdmin   string
 	}
 
-	_, err = db.Exec("INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
-		" VALUES (1002, 'N:user:2', 'user2@pennsieve.org', 'second', 'user', 1, '22222222-2222-2222-2222-222222222222', 'f')")
-	if err != nil {
-		log.Fatal(fmt.Sprintf("Unable to add user (2) for test: %v", err))
+	users := []Users{
+		{userId: 1001, nodeId: "N:user:1", emailAddress: "user1@pennsieve.org", firstName: "one", lastName: "user", preferredOrgId: 1, cognitoId: "11111111-1111-1111-1111-111111111111", isSuperAdmin: "f"},
+		{userId: 1002, nodeId: "N:user:2", emailAddress: "user2@pennsieve.org", firstName: "two", lastName: "user", preferredOrgId: 2, cognitoId: "22222222-2222-2222-2222-222222222222", isSuperAdmin: "f"},
+		{userId: 1003, nodeId: "N:user:3", emailAddress: "user3@pennsieve.org", firstName: "three", lastName: "user", preferredOrgId: 3, cognitoId: "33333333-3333-3333-3333-333333333333", isSuperAdmin: "f"},
+	}
+
+	statement := "INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
+		"VALUES($1, $2, $3, $4, $5, $6, $7, $8);"
+
+	for _, user := range users {
+		_, err := db.Exec(statement, user.userId, user.nodeId, user.emailAddress, user.firstName, user.lastName, user.preferredOrgId, user.cognitoId, user.isSuperAdmin)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add user with userId: %d", user.userId))
+		}
 	}
 }
 
@@ -79,7 +92,8 @@ func addUsersToOrganizations(db *sql.DB) {
 
 	memberships := []OrgUserPermission{
 		{organizationId: 1, userId: 1001, permissionBit: pgdb.Delete},
-		{organizationId: 1, userId: 1002, permissionBit: pgdb.Delete},
+		{organizationId: 2, userId: 1002, permissionBit: pgdb.Delete},
+		{organizationId: 3, userId: 1003, permissionBit: pgdb.Delete},
 	}
 
 	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"

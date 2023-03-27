@@ -58,6 +58,22 @@ func (q *Queries) GetOrganizationUser(ctx context.Context, orgId int64, userId i
 	}
 }
 
+func (q *Queries) AddOrganizationUser(ctx context.Context, orgId int64, userId int64, permBit pgdb.DbPermission) (*pgdb.OrganizationUser, error) {
+	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
+
+	_, err := q.db.ExecContext(ctx, statement, orgId, userId, permBit)
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
+	}
+
+	orgUser, err := q.GetOrganizationUser(ctx, orgId, userId)
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
+	}
+
+	return orgUser, nil
+}
+
 // GetOrganizationClaim returns an organization claim for a specific user.
 func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organizationId int64) (*organization.Claim, error) {
 
