@@ -24,7 +24,7 @@ func TestUsers(t *testing.T) {
 
 func testGetUserByID(t *testing.T, store *SQLStore, orgId int) {
 	id := int64(1001)
-	user, err := store.GetById(context.TODO(), id)
+	user, err := store.GetUserById(context.TODO(), id)
 	assert.NoError(t, err)
 	assert.Equal(t, user.Id, id)
 }
