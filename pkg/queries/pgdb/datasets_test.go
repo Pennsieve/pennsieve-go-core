@@ -63,6 +63,13 @@ func TestDatasetsInsertSelect(t *testing.T) {
 }
 
 func TestDatasets(t *testing.T) {
+	orgId := 3
+	db := testDB[orgId]
+	store := NewSQLStore(db)
+
+	addTestDataset(db, "Test Dataset - GetByName")
+	defer test.Truncate(t, db, orgId, "datasets")
+
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
@@ -70,15 +77,15 @@ func TestDatasets(t *testing.T) {
 		"Create Dataset":      testCreateDataset,
 	} {
 		t.Run(scenario, func(t *testing.T) {
-			orgId := 1
-			store := NewSQLStore(testDB[orgId])
+			orgId := orgId
+			store := store
 			fn(t, store, orgId)
 		})
 	}
 }
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
-	name := "Test Dataset 2"
+	name := "Test Dataset - GetByName"
 	dataset, err := store.GetDatasetByName(context.TODO(), name)
 	assert.NoError(t, err)
 	assert.Equal(t, name, dataset.Name)
@@ -87,8 +94,14 @@ func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
 func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
+	}
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
-	create := CreateDatasetParams{
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
+	}
+	createDatasetParams := CreateDatasetParams{
 		Name:                         "test create Go Core API",
 		Description:                  "dataset creation test",
 		Status:                       defaultDatasetStatus,
@@ -97,7 +110,7 @@ func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 		Tags:                         nil,
 		DataUseAgreement:             defaultDataUseAgreement,
 	}
-	dataset, err := store.CreateDataset(context.TODO(), create)
+	dataset, err := store.CreateDataset(context.TODO(), createDatasetParams)
 	assert.NoError(t, err)
-	assert.Equal(t, create.Name, dataset.Name)
+	assert.Equal(t, createDatasetParams.Name, dataset.Name)
 }

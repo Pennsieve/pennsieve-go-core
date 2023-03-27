@@ -7,14 +7,18 @@ import (
 )
 
 func TestDataUseAgreements(t *testing.T) {
+	orgId := 2
+	db := testDB[orgId]
+	store := NewSQLStore(db)
+
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
 		"Get Default Data Use Agreement": testGetDefaultDataUseAgreement,
 	} {
 		t.Run(scenario, func(t *testing.T) {
-			orgId := 2
-			store := NewSQLStore(testDB[orgId])
+			orgId := orgId
+			store := store
 			fn(t, store, orgId)
 		})
 	}

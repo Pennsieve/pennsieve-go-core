@@ -3,6 +3,7 @@ package pgdb
 import (
 	"database/sql"
 	"fmt"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
@@ -36,6 +37,7 @@ func TestMain(m *testing.M) {
 		log.Fatal("cannot connect to db:", err)
 	}
 	testDB[2] = db2
+
 	addDatasetStatus(db2)
 	addDataUseAgreements(db2)
 
@@ -44,6 +46,8 @@ func TestMain(m *testing.M) {
 		log.Fatal("cannot connect to db:", err)
 	}
 	testDB[3] = db3
+	addDatasetStatus(db3)
+	addDataUseAgreements(db3)
 
 	os.Exit(m.Run())
 }
@@ -94,6 +98,18 @@ func addDataset(db *sql.DB) {
 		log.Fatal(fmt.Sprintf("Unable to add dataset for test: %v", err))
 	}
 
+}
+
+func addTestDataset(db *sql.DB, datasetName string) {
+	datasetNodeId := nodeId.NodeId(nodeId.DataSetCode)
+	datasetState := "READY"
+	datasetStatusId := 1
+	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, status_id) VALUES ('%s', '%s', '%s', %d);",
+		datasetName, datasetNodeId, datasetState, datasetStatusId)
+	_, err := db.Exec(statement)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add dataset for test: %v", err))
+	}
 }
 
 // TestStore is the main Test Suite function for Packages.

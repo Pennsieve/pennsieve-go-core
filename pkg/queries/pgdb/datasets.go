@@ -10,7 +10,16 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	log "github.com/sirupsen/logrus"
 	"sort"
+	"strings"
 )
+
+type DatasetNotFoundError struct {
+	ErrorMessage string
+}
+
+func (e DatasetNotFoundError) Error() string {
+	return fmt.Sprintf("dataset was not found (error: %v)", e.ErrorMessage)
+}
 
 type CreateDatasetParams struct {
 	Name                         string
@@ -24,6 +33,7 @@ type CreateDatasetParams struct {
 
 func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pgdb.Dataset, error) {
 	var err error
+
 	if p.Name == "" {
 		return nil, fmt.Errorf("dataset name cannot be empty or null")
 	}
@@ -34,24 +44,27 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 
 	_, err = q.GetDatasetByName(ctx, p.Name)
 	if err != nil {
-		return nil, fmt.Errorf("a dataset with the name \"%s\" already exists", p.Name)
+		switch err.(type) {
+		case DatasetNotFoundError:
+			// do nothing
+		default:
+			return nil, fmt.Errorf("a dataset with the name \"%s\" already exists (error: %v)", p.Name, err)
+		}
 	}
 
-	datasetNodeId := nodeId.NodeId(nodeId.DataSetCode)
-	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, description, automatically_process_packages" +
-		"status_id, license, tags, data_use_agreement)" +
+	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, description, automatically_process_packages," +
+		" status_id, license, tags, data_use_agreement_id)" +
 		" VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9);")
 
-	_, err = q.db.ExecContext(ctx,
-		statement,
+	_, err = q.db.ExecContext(ctx, statement,
 		p.Name,
-		datasetNodeId,
+		nodeId.NodeId(nodeId.DataSetCode),
 		state.READY,
 		p.Description,
 		p.AutomaticallyProcessPackages,
 		p.Status.Id,
 		p.License,
-		p.Tags,
+		fmt.Sprintf("{%s}", strings.Join(p.Tags, ",")),
 		p.DataUseAgreement.Id)
 
 	if err != nil {
@@ -73,7 +86,7 @@ func (q *Queries) GetDatasetByName(ctx context.Context, name string) (*pgdb.Data
 		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
 		" FROM datasets WHERE name='%s';", name)
 	row := q.db.QueryRowContext(ctx, query)
-	return rowToDataset(row)
+	return scanDataset(row)
 }
 
 // GetDatasets returns all rows in the Upload Record Table
@@ -201,7 +214,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 
 }
 
-func rowToDataset(row *sql.Row) (*pgdb.Dataset, error) {
+func scanDataset(row *sql.Row) (*pgdb.Dataset, error) {
 	var dataset pgdb.Dataset
 
 	err := row.Scan(
@@ -233,8 +246,7 @@ func rowToDataset(row *sql.Row) (*pgdb.Dataset, error) {
 	if err != nil {
 		switch err {
 		case sql.ErrNoRows:
-			log.Error("No rows were returned!")
-			return nil, err
+			return nil, DatasetNotFoundError{"No rows were returned!"}
 		default:
 			log.Error("Unknown Error while scanning dataset row: ", err)
 			panic(err)
