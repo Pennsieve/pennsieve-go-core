@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
@@ -22,6 +23,7 @@ func TestMain(m *testing.M) {
 	}
 	testDB[0] = db0
 	addUsers(db0)
+	addUsersToOrganizations(db0)
 
 	db1, err := ConnectENVWithOrg(1)
 	if err != nil {
@@ -65,6 +67,29 @@ func addUsers(db *sql.DB) {
 		" VALUES (1002, 'N:user:2', 'user2@pennsieve.org', 'second', 'user', 1, '22222222-2222-2222-2222-222222222222', 'f')")
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Unable to add user (2) for test: %v", err))
+	}
+}
+
+func addUsersToOrganizations(db *sql.DB) {
+	type OrgUserPermission struct {
+		organizationId int64
+		userId         int64
+		permissionBit  pgdb.DbPermission
+	}
+
+	memberships := []OrgUserPermission{
+		{organizationId: 1, userId: 1001, permissionBit: pgdb.Delete},
+		{organizationId: 1, userId: 1002, permissionBit: pgdb.Delete},
+	}
+
+	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
+
+	for _, membership := range memberships {
+		_, err := db.Exec(statement, membership.organizationId, membership.userId, membership.permissionBit)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add organization membership org: %d user : %d perm: %d",
+				membership.organizationId, membership.userId, membership.permissionBit))
+		}
 	}
 }
 
