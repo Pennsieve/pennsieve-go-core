@@ -80,3 +80,11 @@ type DatasetTeam struct {
 	CreatedAt time.Time    `json:"created_at"`
 	UpdatedAt time.Time    `json:"updated_at"`
 }
+
+type DatasetContributor struct {
+	DatasetId        int64     `json:"dataset_id"`
+	ContributorId    int64     `json:"contributor_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	ContributorOrder int64     `json:"contributor_order"`
+}

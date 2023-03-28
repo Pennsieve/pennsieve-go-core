@@ -49,6 +49,7 @@ func TestMain(m *testing.M) {
 	testDB[3] = db3
 	addDatasetStatus(db3)
 	addDataUseAgreements(db3)
+	addContributors(db3)
 
 	os.Exit(m.Run())
 }
@@ -69,6 +70,7 @@ func addUsers(db *sql.DB) {
 		{userId: 1001, nodeId: "N:user:1", emailAddress: "user1@pennsieve.org", firstName: "one", lastName: "user", preferredOrgId: 1, cognitoId: "11111111-1111-1111-1111-111111111111", isSuperAdmin: "f"},
 		{userId: 1002, nodeId: "N:user:2", emailAddress: "user2@pennsieve.org", firstName: "two", lastName: "user", preferredOrgId: 2, cognitoId: "22222222-2222-2222-2222-222222222222", isSuperAdmin: "f"},
 		{userId: 1003, nodeId: "N:user:3", emailAddress: "user3@pennsieve.org", firstName: "three", lastName: "user", preferredOrgId: 3, cognitoId: "33333333-3333-3333-3333-333333333333", isSuperAdmin: "f"},
+		{userId: 1004, nodeId: "N:user:4", emailAddress: "user4@pennsieve.org", firstName: "four", lastName: "user", preferredOrgId: 3, cognitoId: "44444444-4444-4444-4444-444444444444", isSuperAdmin: "f"},
 	}
 
 	statement := "INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
@@ -93,6 +95,7 @@ func addUsersToOrganizations(db *sql.DB) {
 		{organizationId: 1, userId: 1001, permissionBit: pgdb.Delete},
 		{organizationId: 2, userId: 1002, permissionBit: pgdb.Delete},
 		{organizationId: 3, userId: 1003, permissionBit: pgdb.Delete},
+		{organizationId: 3, userId: 1004, permissionBit: pgdb.Delete},
 	}
 
 	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
@@ -102,6 +105,47 @@ func addUsersToOrganizations(db *sql.DB) {
 		if err != nil {
 			log.Fatal(fmt.Sprintf("unable to add organization membership org: %d user : %d perm: %d",
 				membership.organizationId, membership.userId, membership.permissionBit))
+		}
+	}
+}
+
+func addContributors(db *sql.DB) {
+	type Contrib struct {
+		userId    int64
+		firstName string
+		lastName  string
+		email     string
+		orcid     string
+	}
+
+	contribList := []Contrib{
+		{
+			userId:    1004,
+			firstName: "four",
+			lastName:  "user",
+			email:     "user4@pennsieve.org",
+			orcid:     "0000-0000-0000-4444",
+		},
+		{
+			userId:    0,
+			firstName: "external",
+			lastName:  "user",
+			email:     "user@external.org",
+			orcid:     "0000-0000-0000-1234",
+		},
+	}
+
+	var err error
+	for _, contrib := range contribList {
+		if contrib.userId > 0 {
+			_, err = db.Exec("INSERT INTO contributors (user_id, first_name, last_name, email, orcid) VALUES($1, $2, $3, $4, $5)",
+				contrib.userId, contrib.firstName, contrib.lastName, contrib.email, contrib.orcid)
+		} else {
+			_, err = db.Exec("INSERT INTO contributors (first_name, last_name, email, orcid) VALUES($1, $2, $3, $4)",
+				contrib.firstName, contrib.lastName, contrib.email, contrib.orcid)
+		}
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add contributor: %+v (error: %+v)", contrib, err))
 		}
 	}
 }
