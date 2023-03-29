@@ -68,7 +68,8 @@ func TestDatasets(t *testing.T) {
 	db := testDB[orgId]
 	store := NewSQLStore(db)
 
-	addTestDataset(db, "Test Dataset - GetByName")
+	addTestDataset(db, "Test Dataset - GetDatasetByName")
+	addTestDataset(db, "Test Dataset - AddUserToDataset")
 	defer test.Truncate(t, db, orgId, "datasets")
 
 	for scenario, fn := range map[string]func(
@@ -87,7 +88,7 @@ func TestDatasets(t *testing.T) {
 }
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
-	name := "Test Dataset - GetByName"
+	name := "Test Dataset - GetDatasetByName"
 	ds, err := store.GetDatasetByName(context.TODO(), name)
 	assert.NoError(t, err)
 	assert.Equal(t, name, ds.Name)
@@ -104,8 +105,8 @@ func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
 	}
 	createDatasetParams := CreateDatasetParams{
-		Name:                         "test create Go Core API",
-		Description:                  "dataset creation test",
+		Name:                         "Test Dataset - CreateDataset",
+		Description:                  "Test Dataset - CreateDataset",
 		Status:                       defaultDatasetStatus,
 		AutomaticallyProcessPackages: false,
 		License:                      "",
@@ -118,7 +119,7 @@ func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 }
 
 func testAddUserToDataset(t *testing.T, store *SQLStore, orgId int) {
-	ds, err := store.GetDatasetByName(context.TODO(), "test create Go Core API")
+	ds, err := store.GetDatasetByName(context.TODO(), "Test Dataset - AddUserToDataset")
 	assert.NoError(t, err)
 
 	user, err := store.GetUserById(context.TODO(), 1003)
