@@ -55,6 +55,16 @@ type Dataset struct {
 	ChangelogId                  uuid.NullUUID  `json:"changelog_id"`
 }
 
+type DatasetStatus struct {
+	Id           int64     `json:"id"`
+	Name         string    `json:"name"`
+	DisplayName  string    `json:"display_name"`
+	OriginalName string    `json:"original_name"`
+	Color        string    `json:"color"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type DatasetUser struct {
 	DatasetId int64        `json:"dataset_id"`
 	UserId    int64        `json:"user_id"`
@@ -69,4 +79,12 @@ type DatasetTeam struct {
 	Role      dataset.Role `json:"role"`
 	CreatedAt time.Time    `json:"created_at"`
 	UpdatedAt time.Time    `json:"updated_at"`
+}
+
+type DatasetContributor struct {
+	DatasetId        int64     `json:"dataset_id"`
+	ContributorId    int64     `json:"contributor_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	ContributorOrder int64     `json:"contributor_order"`
 }

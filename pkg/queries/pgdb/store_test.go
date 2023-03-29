@@ -3,6 +3,8 @@ package pgdb
 import (
 	"database/sql"
 	"fmt"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
@@ -21,6 +23,7 @@ func TestMain(m *testing.M) {
 	}
 	testDB[0] = db0
 	addUsers(db0)
+	addUsersToOrganizations(db0)
 
 	db1, err := ConnectENVWithOrg(1)
 	if err != nil {
@@ -31,28 +34,143 @@ func TestMain(m *testing.M) {
 	// Add stub dataset for testing against other datasets within same org.
 	addDataset(db1)
 
-	db2, err := ConnectENVWithOrg(3)
+	db2, err := ConnectENVWithOrg(2)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
-	testDB[3] = db2
+	testDB[2] = db2
+	addDatasetStatus(db2)
+	addDataUseAgreements(db2)
+
+	db3, err := ConnectENVWithOrg(3)
+	if err != nil {
+		log.Fatal("cannot connect to db:", err)
+	}
+	testDB[3] = db3
+	addDatasetStatus(db3)
+	addDataUseAgreements(db3)
+	addContributors(db3)
 
 	os.Exit(m.Run())
 }
 
 func addUsers(db *sql.DB) {
-	var err error
-
-	_, err = db.Exec("INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
-		" VALUES (1001, 'N:user:1', 'user1@pennsieve.org', 'first', 'user', 1, '11111111-1111-1111-1111-111111111111', 'f')")
-	if err != nil {
-		log.Fatal(fmt.Sprintf("Unable to add user (1) for test: %v", err))
+	type Users struct {
+		userId         int64
+		nodeId         string
+		emailAddress   string
+		firstName      string
+		lastName       string
+		preferredOrgId int64
+		cognitoId      string
+		isSuperAdmin   string
 	}
 
-	_, err = db.Exec("INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
-		" VALUES (1002, 'N:user:2', 'user2@pennsieve.org', 'second', 'user', 1, '22222222-2222-2222-2222-222222222222', 'f')")
+	users := []Users{
+		{userId: 1001, nodeId: "N:user:1", emailAddress: "user1@pennsieve.org", firstName: "one", lastName: "user", preferredOrgId: 1, cognitoId: "11111111-1111-1111-1111-111111111111", isSuperAdmin: "f"},
+		{userId: 1002, nodeId: "N:user:2", emailAddress: "user2@pennsieve.org", firstName: "two", lastName: "user", preferredOrgId: 2, cognitoId: "22222222-2222-2222-2222-222222222222", isSuperAdmin: "f"},
+		{userId: 1003, nodeId: "N:user:3", emailAddress: "user3@pennsieve.org", firstName: "three", lastName: "user", preferredOrgId: 3, cognitoId: "33333333-3333-3333-3333-333333333333", isSuperAdmin: "f"},
+		{userId: 1004, nodeId: "N:user:4", emailAddress: "user4@pennsieve.org", firstName: "four", lastName: "user", preferredOrgId: 3, cognitoId: "44444444-4444-4444-4444-444444444444", isSuperAdmin: "f"},
+	}
+
+	statement := "INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
+		"VALUES($1, $2, $3, $4, $5, $6, $7, $8);"
+
+	for _, user := range users {
+		_, err := db.Exec(statement, user.userId, user.nodeId, user.emailAddress, user.firstName, user.lastName, user.preferredOrgId, user.cognitoId, user.isSuperAdmin)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add user with userId: %d", user.userId))
+		}
+	}
+}
+
+func addUsersToOrganizations(db *sql.DB) {
+	type OrgUserPermission struct {
+		organizationId int64
+		userId         int64
+		permissionBit  pgdb.DbPermission
+	}
+
+	memberships := []OrgUserPermission{
+		{organizationId: 1, userId: 1001, permissionBit: pgdb.Delete},
+		{organizationId: 2, userId: 1002, permissionBit: pgdb.Delete},
+		{organizationId: 3, userId: 1003, permissionBit: pgdb.Delete},
+		{organizationId: 3, userId: 1004, permissionBit: pgdb.Delete},
+	}
+
+	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
+
+	for _, membership := range memberships {
+		_, err := db.Exec(statement, membership.organizationId, membership.userId, membership.permissionBit)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add organization membership org: %d user : %d perm: %d",
+				membership.organizationId, membership.userId, membership.permissionBit))
+		}
+	}
+}
+
+func addContributors(db *sql.DB) {
+	type Contrib struct {
+		userId    int64
+		firstName string
+		lastName  string
+		email     string
+		orcid     string
+	}
+
+	contribList := []Contrib{
+		{
+			userId:    1004,
+			firstName: "four",
+			lastName:  "user",
+			email:     "user4@pennsieve.org",
+			orcid:     "0000-0000-0000-4444",
+		},
+		{
+			userId:    0,
+			firstName: "external",
+			lastName:  "user",
+			email:     "user@external.org",
+			orcid:     "0000-0000-0000-1234",
+		},
+	}
+
+	var err error
+	for _, contrib := range contribList {
+		if contrib.userId > 0 {
+			_, err = db.Exec("INSERT INTO contributors (user_id, first_name, last_name, email, orcid) VALUES($1, $2, $3, $4, $5)",
+				contrib.userId, contrib.firstName, contrib.lastName, contrib.email, contrib.orcid)
+		} else {
+			_, err = db.Exec("INSERT INTO contributors (first_name, last_name, email, orcid) VALUES($1, $2, $3, $4)",
+				contrib.firstName, contrib.lastName, contrib.email, contrib.orcid)
+		}
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add contributor: %+v (error: %+v)", contrib, err))
+		}
+	}
+}
+
+func addDatasetStatus(db *sql.DB) {
+	var err error
+	_, err = db.Exec("INSERT INTO dataset_status (id, name, display_name, original_name, color) VALUES (1001, 'Initial_Status', 'Initial Status', 'Initial_Status', '#000000')")
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Unable to add user (2) for test: %v", err))
+		log.Fatal(fmt.Sprintf("Unable to add dataset_status (1) for test: %v", err))
+	}
+	_, err = db.Exec("INSERT INTO dataset_status (id, name, display_name, original_name, color) VALUES (1002, 'Second_Status', 'Second Status', 'Second_Status', '#000000')")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add dataset_status (2) for test: %v", err))
+	}
+}
+
+func addDataUseAgreements(db *sql.DB) {
+	var err error
+	_, err = db.Exec("INSERT INTO data_use_agreements (id, name, body, description, is_default) VALUES (1001, 'Data Use Agreement General', 'Use the data any way you like.', 'for general, unrestricted use', true)")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add data_use_agreements (1) for test: %v", err))
+	}
+	_, err = db.Exec("INSERT INTO data_use_agreements (id, name, body, description, is_default) VALUES (1002, 'Data Use Agreement Restricted', 'Use the data as permitted.', 'requires authorization', false)")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add data_use_agreements (2) for test: %v", err))
 	}
 }
 
@@ -62,6 +180,18 @@ func addDataset(db *sql.DB) {
 		log.Fatal(fmt.Sprintf("Unable to add dataset for test: %v", err))
 	}
 
+}
+
+func addTestDataset(db *sql.DB, datasetName string) {
+	datasetNodeId := nodeId.NodeId(nodeId.DataSetCode)
+	datasetState := "READY"
+	datasetStatusId := 1
+	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, status_id) VALUES ('%s', '%s', '%s', %d);",
+		datasetName, datasetNodeId, datasetState, datasetStatusId)
+	_, err := db.Exec(statement)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Unable to add dataset for test: %v", err))
+	}
 }
 
 // TestStore is the main Test Suite function for Packages.

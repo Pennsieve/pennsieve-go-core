@@ -67,7 +67,7 @@ func testUpdateManifestStatus(t *testing.T, client *DynamoStore) {
 	ctx := context.Background()
 	manifestId := "1111"
 
-	err := client.updateManifestStatus(ctx, manifestTableName, manifestId, manifest.Completed)
+	err := client.UpdateManifestStatus(ctx, manifestTableName, manifestId, manifest.Completed)
 	assert.Nil(t, err, "Manifest status could not be updated")
 
 	out, err := client.GetManifestById(ctx, manifestTableName, manifestId)
