@@ -3,8 +3,8 @@ package pgdb
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	log "github.com/sirupsen/logrus"
 )
 
 //GetTokenByCognitoId returns a user from Postgress based on his/her cognito-id
@@ -29,7 +29,7 @@ func (q *Queries) GetTokenByCognitoId(ctx context.Context, id string) (*pgdb.Tok
 
 	switch err {
 	case sql.ErrNoRows:
-		fmt.Println("No rows were returned!")
+		log.Error("No rows were returned!")
 		return nil, err
 	case nil:
 		return &token, nil
@@ -56,7 +56,7 @@ func (q *Queries) GetUserByCognitoId(ctx context.Context, id string) (*pgdb.User
 
 	switch err {
 	case sql.ErrNoRows:
-		fmt.Println("No rows were returned!")
+		log.Errorf("No rows were returned!")
 		return nil, err
 	case nil:
 		return &user, nil

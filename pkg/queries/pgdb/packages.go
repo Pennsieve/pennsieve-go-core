@@ -76,7 +76,7 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 
 	switch err {
 	case sql.ErrNoRows:
-		fmt.Println("Error creating or getting a folder")
+		log.Error("Error creating or getting a folder")
 		return nil, err
 	case nil:
 		return &currentRecord, nil

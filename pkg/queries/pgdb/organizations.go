@@ -3,8 +3,8 @@ package pgdb
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	log "github.com/sirupsen/logrus"
 )
 
 // GetOrganization returns a single organization
@@ -28,7 +28,7 @@ func (q *Queries) GetOrganization(ctx context.Context, id int64) (*pgdb.Organiza
 
 	switch err {
 	case sql.ErrNoRows:
-		fmt.Println("No rows were returned!")
+		log.Error("No rows were returned!")
 		return nil, err
 	case nil:
 		return &organization, nil
