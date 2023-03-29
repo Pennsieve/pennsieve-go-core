@@ -3,6 +3,7 @@ package pgdb
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	log "github.com/sirupsen/logrus"
