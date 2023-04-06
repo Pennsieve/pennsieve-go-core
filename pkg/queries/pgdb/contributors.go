@@ -83,27 +83,36 @@ func getContributor(ctx context.Context, db DBTX, query string) (*pgdb.Contribut
 }
 
 // AddContributor will add a Contributor to the Organization's Contributors table.
-func (q *Queries) AddContributor(ctx context.Context, contributor NewContributor) (*pgdb.Contributor, error) {
+func (q *Queries) AddContributor(ctx context.Context, newContributor NewContributor) (*pgdb.Contributor, error) {
 	var err error
-	if contributor.UserId > 0 {
+	var contributor *pgdb.Contributor
+
+	// try to find the contributor; if the contributor is found, then return it
+	contributor, err = q.FindContributor(ctx, newContributor)
+	if contributor != nil {
+		return contributor, nil
+	}
+
+	// the contributor does not exist, so create it
+	if newContributor.UserId > 0 {
 		_, err = q.db.ExecContext(ctx,
 			"INSERT INTO contributors (first_name, middle_initial, last_name, degree, email, orcid, user_id) VALUES($1, $2, $3, $4, $5, $6, $7)",
-			contributor.FirstName,
-			contributor.MiddleInitial,
-			contributor.LastName,
-			contributor.Degree,
-			contributor.EmailAddress,
-			contributor.Orcid,
-			contributor.UserId)
+			newContributor.FirstName,
+			newContributor.MiddleInitial,
+			newContributor.LastName,
+			newContributor.Degree,
+			newContributor.EmailAddress,
+			newContributor.Orcid,
+			newContributor.UserId)
 	} else {
 		_, err = q.db.ExecContext(ctx,
 			"INSERT INTO contributors (first_name, middle_initial, last_name, degree, email, orcid) VALUES($1, $2, $3, $4, $5, $6)",
-			contributor.FirstName,
-			contributor.MiddleInitial,
-			contributor.LastName,
-			contributor.Degree,
-			contributor.EmailAddress,
-			contributor.Orcid)
+			newContributor.FirstName,
+			newContributor.MiddleInitial,
+			newContributor.LastName,
+			newContributor.Degree,
+			newContributor.EmailAddress,
+			newContributor.Orcid)
 	}
 
 	// ExecContext returned an error
@@ -111,7 +120,28 @@ func (q *Queries) AddContributor(ctx context.Context, contributor NewContributor
 		return nil, err
 	}
 
-	return q.GetContributorByEmail(ctx, contributor.EmailAddress)
+	return q.GetContributorByEmail(ctx, newContributor.EmailAddress)
+}
+
+// FindContributor will search for a contributor by several User Id, Email Address, and ORCID
+func (q *Queries) FindContributor(ctx context.Context, search NewContributor) (*pgdb.Contributor, error) {
+	var err error
+	var contributor *pgdb.Contributor
+	contributor = nil
+
+	if contributor == nil && search.UserId > 0 {
+		contributor, err = q.GetContributorByUserId(ctx, search.UserId)
+	}
+
+	if contributor == nil && search.EmailAddress != "" {
+		contributor, err = q.GetContributorByEmail(ctx, search.EmailAddress)
+	}
+
+	if contributor == nil && search.Orcid != "" {
+		contributor, err = q.GetContributorByOrcid(ctx, search.Orcid)
+	}
+
+	return contributor, err
 }
 
 // GetContributor will get a Contributor by the Contributor Id (not the User Id).
