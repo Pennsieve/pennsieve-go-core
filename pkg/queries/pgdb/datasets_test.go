@@ -8,6 +8,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
+	"strings"
 	"testing"
 )
 
@@ -130,12 +131,12 @@ func testAddUserToDataset(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 	assert.Equal(t, ds.Id, dsu1.DatasetId)
 	assert.Equal(t, user.Id, dsu1.UserId)
-	assert.Equal(t, dataset.Owner, dsu1.Role)
+	assert.Equal(t, strings.ToLower(dataset.Owner.String()), dsu1.Role)
 
 	// get dataset user
 	dsu2, err := store.GetDatasetUser(context.TODO(), ds, user)
 	assert.NoError(t, err)
 	assert.Equal(t, ds.Id, dsu2.DatasetId)
 	assert.Equal(t, user.Id, dsu2.UserId)
-	assert.Equal(t, dataset.Owner, dsu2.Role)
+	assert.Equal(t, strings.ToLower(dataset.Owner.String()), dsu2.Role)
 }
