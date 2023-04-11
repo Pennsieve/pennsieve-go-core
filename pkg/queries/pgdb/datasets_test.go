@@ -8,7 +8,6 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
-	"strings"
 	"testing"
 )
 
@@ -70,15 +69,21 @@ func TestDatasets(t *testing.T) {
 	store := NewSQLStore(db)
 
 	addTestDataset(db, "Test Dataset - GetDatasetByName")
-	addTestDataset(db, "Test Dataset - AddUserToDataset")
+	addTestDataset(db, "Test Dataset - AddOwnerToDataset")
+	addTestDataset(db, "Test Dataset - AddViewerToDataset")
+	addTestDataset(db, "Test Dataset - AddEditorToDataset")
+	addTestDataset(db, "Test Dataset - AddManagerToDataset")
 	defer test.Truncate(t, db, orgId, "datasets")
 
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Get Dataset by Name": testGetDatasetByName,
-		"Create Dataset":      testCreateDataset,
-		"Add User to Dataset": testAddUserToDataset,
+		"Get Dataset by Name":    testGetDatasetByName,
+		"Create Dataset":         testCreateDataset,
+		"Add Owner to Dataset":   testAddOwnerToDataset,
+		"Add Viewer to Dataset":  testAddViewerToDataset,
+		"Add Editor to Dataset":  testAddEditorToDataset,
+		"Add Manager to Dataset": testAddManagerToDataset,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -119,24 +124,90 @@ func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, createDatasetParams.Name, ds.Name)
 }
 
-func testAddUserToDataset(t *testing.T, store *SQLStore, orgId int) {
-	ds, err := store.GetDatasetByName(context.TODO(), "Test Dataset - AddUserToDataset")
+func addDatasetUserTest(t *testing.T, store *SQLStore, datasetName string, userId int64, role dataset.Role, expectedLabel string, expectedPermission int64) {
+	ds, err := store.GetDatasetByName(context.TODO(), datasetName)
 	assert.NoError(t, err)
 
-	user, err := store.GetUserById(context.TODO(), 1003)
+	user, err := store.GetUserById(context.TODO(), userId)
 	assert.NoError(t, err)
 
 	// add user to the dataset
-	dsu1, err := store.AddDatasetUser(context.TODO(), ds, user, dataset.Owner)
+	dsu1, err := store.AddDatasetUser(context.TODO(), ds, user, role)
 	assert.NoError(t, err)
 	assert.Equal(t, ds.Id, dsu1.DatasetId)
 	assert.Equal(t, user.Id, dsu1.UserId)
-	assert.Equal(t, strings.ToLower(dataset.Owner.String()), dsu1.Role)
+	assert.Equal(t, expectedLabel, dsu1.Role)
+	assert.Equal(t, expectedPermission, dsu1.PermissionBit)
 
 	// get dataset user
 	dsu2, err := store.GetDatasetUser(context.TODO(), ds, user)
 	assert.NoError(t, err)
 	assert.Equal(t, ds.Id, dsu2.DatasetId)
 	assert.Equal(t, user.Id, dsu2.UserId)
-	assert.Equal(t, strings.ToLower(dataset.Owner.String()), dsu2.Role)
+	assert.Equal(t, expectedLabel, dsu2.Role)
+	assert.Equal(t, expectedPermission, dsu1.PermissionBit)
+}
+
+func testAddOwnerToDataset(t *testing.T, store *SQLStore, orgId int) {
+	datasetName := "Test Dataset - AddOwnerToDataset"
+	userId := int64(1003)
+	role := dataset.Owner
+	expectedLabel := "owner"
+	expectedPermission := int64(32)
+
+	addDatasetUserTest(t,
+		store,
+		datasetName,
+		userId,
+		role,
+		expectedLabel,
+		expectedPermission)
+}
+
+func testAddViewerToDataset(t *testing.T, store *SQLStore, orgId int) {
+	datasetName := "Test Dataset - AddViewerToDataset"
+	userId := int64(1003)
+	role := dataset.Viewer
+	expectedLabel := "viewer"
+	expectedPermission := int64(2)
+
+	addDatasetUserTest(t,
+		store,
+		datasetName,
+		userId,
+		role,
+		expectedLabel,
+		expectedPermission)
+}
+
+func testAddEditorToDataset(t *testing.T, store *SQLStore, orgId int) {
+	datasetName := "Test Dataset - AddEditorToDataset"
+	userId := int64(1003)
+	role := dataset.Editor
+	expectedLabel := "editor"
+	expectedPermission := int64(8)
+
+	addDatasetUserTest(t,
+		store,
+		datasetName,
+		userId,
+		role,
+		expectedLabel,
+		expectedPermission)
+}
+
+func testAddManagerToDataset(t *testing.T, store *SQLStore, orgId int) {
+	datasetName := "Test Dataset - AddManagerToDataset"
+	userId := int64(1003)
+	role := dataset.Manager
+	expectedLabel := "manager"
+	expectedPermission := int64(16)
+
+	addDatasetUserTest(t,
+		store,
+		datasetName,
+		userId,
+		role,
+		expectedLabel,
+		expectedPermission)
 }
