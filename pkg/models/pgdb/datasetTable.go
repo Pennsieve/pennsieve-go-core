@@ -5,7 +5,7 @@ import (
 	"database/sql/driver"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"time"
 )
 
@@ -75,11 +75,11 @@ type DatasetUser struct {
 }
 
 type DatasetTeam struct {
-	DatasetId int64        `json:"dataset_id"`
-	TeamId    int64        `json:"team_id"`
-	Role      dataset.Role `json:"role"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	DatasetId int64     `json:"dataset_id"`
+	TeamId    int64     `json:"team_id"`
+	Role      role.Role `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type DatasetContributor struct {
