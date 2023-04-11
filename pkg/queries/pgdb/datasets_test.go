@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
@@ -124,7 +124,7 @@ func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, createDatasetParams.Name, ds.Name)
 }
 
-func addDatasetUserTest(t *testing.T, store *SQLStore, datasetName string, userId int64, role dataset.Role, expectedLabel string, expectedPermission int64) {
+func addDatasetUserTest(t *testing.T, store *SQLStore, datasetName string, userId int64, role role.Role, expectedLabel string, expectedPermission int64) {
 	ds, err := store.GetDatasetByName(context.TODO(), datasetName)
 	assert.NoError(t, err)
 
@@ -151,7 +151,7 @@ func addDatasetUserTest(t *testing.T, store *SQLStore, datasetName string, userI
 func testAddOwnerToDataset(t *testing.T, store *SQLStore, orgId int) {
 	datasetName := "Test Dataset - AddOwnerToDataset"
 	userId := int64(1003)
-	role := dataset.Owner
+	role := role.Owner
 	expectedLabel := "owner"
 	expectedPermission := int64(32)
 
@@ -167,7 +167,7 @@ func testAddOwnerToDataset(t *testing.T, store *SQLStore, orgId int) {
 func testAddViewerToDataset(t *testing.T, store *SQLStore, orgId int) {
 	datasetName := "Test Dataset - AddViewerToDataset"
 	userId := int64(1003)
-	role := dataset.Viewer
+	role := role.Viewer
 	expectedLabel := "viewer"
 	expectedPermission := int64(2)
 
@@ -183,7 +183,7 @@ func testAddViewerToDataset(t *testing.T, store *SQLStore, orgId int) {
 func testAddEditorToDataset(t *testing.T, store *SQLStore, orgId int) {
 	datasetName := "Test Dataset - AddEditorToDataset"
 	userId := int64(1003)
-	role := dataset.Editor
+	role := role.Editor
 	expectedLabel := "editor"
 	expectedPermission := int64(8)
 
@@ -199,7 +199,7 @@ func testAddEditorToDataset(t *testing.T, store *SQLStore, orgId int) {
 func testAddManagerToDataset(t *testing.T, store *SQLStore, orgId int) {
 	datasetName := "Test Dataset - AddManagerToDataset"
 	userId := int64(1003)
-	role := dataset.Manager
+	role := role.Manager
 	expectedLabel := "manager"
 	expectedPermission := int64(16)
 

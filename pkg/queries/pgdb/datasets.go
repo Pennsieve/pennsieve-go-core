@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/state"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
@@ -157,10 +158,10 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 	}
 
 	// If maybeDatasetRole is set, include the role, otherwise use none-role
-	datasetRole := dataset.None
+	datasetRole := role.None
 	if maybeDatasetRole.Valid {
 		var ok bool
-		datasetRole, ok = dataset.RoleFromString(maybeDatasetRole.String)
+		datasetRole, ok = role.RoleFromString(maybeDatasetRole.String)
 		if !ok {
 			log.Fatalln("Could not map Dataset Role from database string: ", maybeDatasetRole.String)
 		}
@@ -187,7 +188,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 		return nil, err
 	}
 
-	roles := []dataset.Role{
+	roles := []role.Role{
 		datasetRole,
 	}
 	for rows.Next() {
@@ -199,7 +200,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 			log.Error("ERROR: ", err)
 		}
 
-		role, ok := dataset.RoleFromString(roleString)
+		role, ok := role.RoleFromString(roleString)
 		if !ok {
 			log.Fatalln("Could not map Dataset Role from database string.")
 		}
@@ -249,7 +250,7 @@ func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	return &datasetUser, nil
 }
 
-func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User, role dataset.Role) (*pgdb.DatasetUser, error) {
+func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User, role role.Role) (*pgdb.DatasetUser, error) {
 	existing, err := q.GetDatasetUser(ctx, dataset, user)
 	if err != nil {
 		switch err.(type) {
@@ -273,17 +274,17 @@ func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	return q.GetDatasetUser(ctx, dataset, user)
 }
 
-func datasetRoleToPermission(role dataset.Role) pgdb.DbPermission {
-	switch role {
-	case dataset.None:
+func datasetRoleToPermission(r role.Role) pgdb.DbPermission {
+	switch r {
+	case role.None:
 		return pgdb.NoPermission
-	case dataset.Viewer:
+	case role.Viewer:
 		return pgdb.Read
-	case dataset.Editor:
+	case role.Editor:
 		return pgdb.Delete
-	case dataset.Manager:
+	case role.Manager:
 		return pgdb.Administer
-	case dataset.Owner:
+	case role.Owner:
 		return pgdb.Owner
 	default:
 		return pgdb.NoPermission
