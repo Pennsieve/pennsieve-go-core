@@ -66,11 +66,12 @@ type DatasetStatus struct {
 }
 
 type DatasetUser struct {
-	DatasetId int64        `json:"dataset_id"`
-	UserId    int64        `json:"user_id"`
-	Role      dataset.Role `json:"role"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	DatasetId     int64     `json:"dataset_id"`
+	UserId        int64     `json:"user_id"`
+	Role          string    `json:"role"`
+	PermissionBit int64     `json:"permission_bit"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type DatasetTeam struct {

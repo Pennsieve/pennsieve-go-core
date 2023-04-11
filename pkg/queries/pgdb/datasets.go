@@ -223,7 +223,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 }
 
 func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User) (*pgdb.DatasetUser, error) {
-	query := "SELECT dataset_id, user_id, role, created_at, updated_at FROM dataset_user WHERE dataset_id=$1 AND user_id=$2"
+	query := "SELECT dataset_id, user_id, role, permission_bit, created_at, updated_at FROM dataset_user WHERE dataset_id=$1 AND user_id=$2"
 
 	var datasetUser pgdb.DatasetUser
 
@@ -231,6 +231,7 @@ func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 		&datasetUser.DatasetId,
 		&datasetUser.UserId,
 		&datasetUser.Role,
+		&datasetUser.PermissionBit,
 		&datasetUser.CreatedAt,
 		&datasetUser.UpdatedAt,
 	)
@@ -264,7 +265,7 @@ func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	}
 
 	statement := "INSERT INTO dataset_user (dataset_id, user_id, role, permission_bit) VALUES ($1, $2, $3, $4)"
-	_, err = q.db.ExecContext(ctx, statement, dataset.Id, user.Id, role, datasetRoleToPermission(role))
+	_, err = q.db.ExecContext(ctx, statement, dataset.Id, user.Id, strings.ToLower(role.String()), datasetRoleToPermission(role))
 	if err != nil {
 		return nil, err
 	}
