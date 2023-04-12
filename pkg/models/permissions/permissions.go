@@ -1,7 +1,7 @@
 package permissions
 
 import (
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 )
 
 type DatasetPermission int64
@@ -56,11 +56,11 @@ var Permission = map[string]string{
 	"Viewer": "[ ]",
 }
 
-func rolePermissions(role dataset.Role) []DatasetPermission {
+func rolePermissions(r role.Role) []DatasetPermission {
 
 	var permissionSet []DatasetPermission
-	switch role {
-	case dataset.Viewer:
+	switch r {
+	case role.Viewer:
 		permissionSet = []DatasetPermission{
 			ViewGraphSchema,
 			ViewRecords,
@@ -73,8 +73,8 @@ func rolePermissions(role dataset.Role) []DatasetPermission {
 			ViewWebhooks,
 		}
 
-	case dataset.Editor:
-		permissionSet = rolePermissions(dataset.Viewer)
+	case role.Editor:
+		permissionSet = rolePermissions(role.Viewer)
 		permissionSet = append(permissionSet, []DatasetPermission{
 			CreateDeleteRecord,
 			CreateDeleteFiles,
@@ -87,8 +87,8 @@ func rolePermissions(role dataset.Role) []DatasetPermission {
 			TriggerCustomEvents,
 		}...)
 
-	case dataset.Manager:
-		permissionSet = rolePermissions(dataset.Editor)
+	case role.Manager:
+		permissionSet = rolePermissions(role.Editor)
 		permissionSet = append(permissionSet, []DatasetPermission{
 			ManageGraphSchema,
 			ManageModelTemplates,
@@ -108,8 +108,8 @@ func rolePermissions(role dataset.Role) []DatasetPermission {
 			ManageWebhooks,
 		}...)
 
-	case dataset.Owner:
-		permissionSet = rolePermissions(dataset.Manager)
+	case role.Owner:
+		permissionSet = rolePermissions(role.Manager)
 		permissionSet = append(permissionSet, []DatasetPermission{
 			TransferOwnership,
 			DeleteDataset,
@@ -120,8 +120,8 @@ func rolePermissions(role dataset.Role) []DatasetPermission {
 	return permissionSet
 }
 
-func HasDatasetPermission(role dataset.Role, permission DatasetPermission) bool {
-	permSet := rolePermissions(role)
+func HasDatasetPermission(r role.Role, permission DatasetPermission) bool {
+	permSet := rolePermissions(r)
 
 	for _, v := range permSet {
 		if v == permission {

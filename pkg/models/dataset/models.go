@@ -2,52 +2,12 @@ package dataset
 
 import (
 	"fmt"
-	"strings"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 )
-
-type Role int64
-
-const (
-	None Role = iota
-	Viewer
-	Editor
-	Manager
-	Owner
-)
-
-var RoleMap = map[string]Role{
-	"none":    None,
-	"viewer":  Viewer,
-	"editor":  Editor,
-	"manager": Manager,
-	"owner":   Owner,
-}
-
-func RoleFromString(str string) (Role, bool) {
-	c, ok := RoleMap[strings.ToLower(str)]
-	return c, ok
-}
-
-func (s Role) String() string {
-	switch s {
-	case None:
-		return "None"
-	case Viewer:
-		return "Viewer"
-	case Editor:
-		return "Editor"
-	case Manager:
-		return "Manager"
-	case Owner:
-		return "Owner"
-	}
-
-	return "Viewer"
-}
 
 // Claim provides an object that describes a Role and a Target
 type Claim struct {
-	Role   Role
+	Role   role.Role
 	NodeId string
 	IntId  int64
 }

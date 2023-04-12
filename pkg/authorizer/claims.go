@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/permissions"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
@@ -35,7 +36,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 			datasetClaims := val.(map[string]interface{})
 			datasetRole := int64(datasetClaims["Role"].(float64))
 			datasetClaim = dataset.Claim{
-				Role:   dataset.Role(datasetRole),
+				Role:   role.Role(datasetRole),
 				NodeId: datasetClaims["NodeId"].(string),
 				IntId:  int64(datasetClaims["IntId"].(float64)),
 			}

@@ -33,7 +33,7 @@ func (q *Queries) GetOrganizationUserById(ctx context.Context, id int64) (*pgdb.
 
 	switch err {
 	case sql.ErrNoRows:
-		log.Error("No rows were returned!")
+		//log.Error("No rows were returned!")
 		return nil, err
 	case nil:
 		return &orgUser, nil
