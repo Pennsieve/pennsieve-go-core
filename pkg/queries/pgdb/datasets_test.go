@@ -78,13 +78,14 @@ func TestDatasets(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Get Dataset by Name":         testGetDatasetByName,
-		"Create Dataset":              testCreateDataset,
-		"Add Owner to Dataset":        testAddOwnerToDataset,
-		"Add Viewer to Dataset":       testAddViewerToDataset,
-		"Add Editor to Dataset":       testAddEditorToDataset,
-		"Add Manager to Dataset":      testAddManagerToDataset,
-		"Unspecified License is Null": testUnspecifiedLicenseIsNull,
+		"Get Dataset by Name":          testGetDatasetByName,
+		"Create Dataset":               testCreateDataset,
+		"Add Owner to Dataset":         testAddOwnerToDataset,
+		"Add Viewer to Dataset":        testAddViewerToDataset,
+		"Add Editor to Dataset":        testAddEditorToDataset,
+		"Add Manager to Dataset":       testAddManagerToDataset,
+		"Unspecified License is Null":  testUnspecifiedLicenseIsNull,
+		"Empty String License Is Null": testEmptyStringLicenseIsNull,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -226,6 +227,30 @@ func testUnspecifiedLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
 	createDatasetParams := CreateDatasetParams{
 		Name:                         "Test Dataset - UnspecifiedLicenseIsNull",
 		Description:                  "Test Dataset - UnspecifiedLicenseIsNull",
+		Status:                       defaultDatasetStatus,
+		AutomaticallyProcessPackages: false,
+		Tags:                         nil,
+		DataUseAgreement:             defaultDataUseAgreement,
+	}
+	ds, err := store.CreateDataset(context.TODO(), createDatasetParams)
+	assert.NoError(t, err)
+	assert.Equal(t, createDatasetParams.Name, ds.Name)
+	assert.False(t, ds.License.Valid)
+}
+
+func testEmptyStringLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
+	var err error
+	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
+	}
+	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
+	}
+	createDatasetParams := CreateDatasetParams{
+		Name:                         "Test Dataset - EmptyStringLicenseIsNull",
+		Description:                  "Test Dataset - EmptyStringLicenseIsNull",
 		Status:                       defaultDatasetStatus,
 		AutomaticallyProcessPackages: false,
 		License:                      "",
