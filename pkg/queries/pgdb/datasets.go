@@ -63,7 +63,7 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 
 	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, description, automatically_process_packages," +
 		" status_id, license, tags, data_use_agreement_id)" +
-		" VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9);")
+		" VALUES($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9);")
 
 	_, err = q.db.ExecContext(ctx, statement,
 		p.Name,
