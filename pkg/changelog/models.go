@@ -34,7 +34,7 @@ func (s Type) String() string {
 type MessageParams struct {
 	OrganizationId int64   `json:"organizationId"`
 	DatasetId      int64   `json:"datasetId"`
-	UserId         int64   `json:"userId"`
+	UserId         string  `json:"userId"`
 	Events         []Event `json:"events"`
 	TraceId        string  `json:"traceId"`
 	Id             string  `json:"id"`
