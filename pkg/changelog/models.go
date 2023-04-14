@@ -1,6 +1,9 @@
 package changelog
 
-import "time"
+import (
+	"bytes"
+	"time"
+)
 
 type Type int64
 
@@ -9,6 +12,13 @@ const (
 	CreatePackage Type = iota
 	DeletePackage
 )
+
+func (s Type) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString(`"`)
+	buffer.WriteString(s.String())
+	buffer.WriteString(`"`)
+	return buffer.Bytes(), nil
+}
 
 func (s Type) String() string {
 	switch s {
