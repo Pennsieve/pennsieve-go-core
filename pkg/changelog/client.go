@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	log "github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -29,12 +28,9 @@ func (c *Client) EmitEvents(ctx context.Context, params Message) error {
 		QueueUrl:    aws.String(c.queueUrl),
 	}
 
-	log.Info("URL:" + c.queueUrl)
-	log.Info("MESSAGE: " + string(message))
-
 	_, err = c.client.SendMessage(ctx, &messageInput)
 	if err != nil {
-		log.Error(err)
+		return err
 	}
 
 	return nil
