@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	log "github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -12,7 +13,7 @@ type Client struct {
 	queueUrl string
 }
 
-func NewChangeLogClient(client sqs.Client, queueUrl string) *Client {
+func NewClient(client sqs.Client, queueUrl string) *Client {
 	return &Client{client: client, queueUrl: queueUrl}
 }
 
@@ -27,6 +28,8 @@ func (c *Client) EmitEvents(ctx context.Context, params MessageParams) error {
 		MessageBody: aws.String(string(message)),
 		QueueUrl:    aws.String(c.queueUrl),
 	}
+
+	log.Info(messageInput)
 
 	c.client.SendMessage(ctx, &messageInput)
 
