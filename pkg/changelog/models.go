@@ -22,7 +22,7 @@ func (s Type) String() string {
 }
 
 type MessageParams struct {
-	OrganizationId int64   `json:"OrganizationId"`
+	OrganizationId int64   `json:"organizationId"`
 	DatasetId      int64   `json:"datasetId"`
 	UserId         int64   `json:"userId"`
 	Events         []Event `json:"events"`
