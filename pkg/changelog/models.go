@@ -6,15 +6,15 @@ type Type int64
 
 // TODO: add other types based on API
 const (
-	createPackage Type = iota
-	deletePackage
+	CreatePackage Type = iota
+	DeletePackage
 )
 
 func (s Type) String() string {
 	switch s {
-	case createPackage:
+	case CreatePackage:
 		return "CREATE_PACKAGE"
-	case deletePackage:
+	case DeletePackage:
 		return "DELETE_PACKAGE"
 	}
 
