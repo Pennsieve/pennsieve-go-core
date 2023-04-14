@@ -17,7 +17,7 @@ func NewClient(client sqs.Client, queueUrl string) *Client {
 	return &Client{client: client, queueUrl: queueUrl}
 }
 
-func (c *Client) EmitEvents(ctx context.Context, params MessageParams) error {
+func (c *Client) EmitEvents(ctx context.Context, params Message) error {
 
 	message, err := json.Marshal(params)
 	if err != nil {

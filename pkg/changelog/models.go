@@ -1,5 +1,7 @@
 package changelog
 
+import "time"
+
 type Type int64
 
 // TODO: add other types based on API
@@ -20,12 +22,12 @@ func (s Type) String() string {
 }
 
 type MessageParams struct {
-	OrganizationId int64         `json:"OrganizationId"`
-	DatasetId      int64         `json:"datasetId"`
-	UserId         int64         `json:"userId"`
-	Events         []interface{} `json:"events"`
-	TraceId        string        `json:"traceId"`
-	Id             string        `json:"id"`
+	OrganizationId int64   `json:"OrganizationId"`
+	DatasetId      int64   `json:"datasetId"`
+	UserId         int64   `json:"userId"`
+	Events         []Event `json:"events"`
+	TraceId        string  `json:"traceId"`
+	Id             string  `json:"id"`
 }
 
 type ParentPackage struct {
@@ -39,4 +41,14 @@ type PackageCreateEvent struct {
 	Name   string         `json:"name"`
 	NodeId string         `json:"nodeId"`
 	parent *ParentPackage `json:"parent"`
+}
+
+type Event struct {
+	EventType   Type        `json:"eventType"`
+	EventDetail interface{} `json:"eventDetail"`
+	Timestamp   time.Time   `json:"timestamp"`
+}
+
+type Message struct {
+	DatasetChangelogEventJob MessageParams `json:"DatasetChangelogEventJob"`
 }
