@@ -32,7 +32,10 @@ func (c *Client) EmitEvents(ctx context.Context, params MessageParams) error {
 	log.Info("URL:" + c.queueUrl)
 	log.Info("MESSAGE: " + string(message))
 
-	c.client.SendMessage(ctx, &messageInput)
+	_, err = c.client.SendMessage(ctx, &messageInput)
+	if err != nil {
+		log.Error(err)
+	}
 
 	return nil
 
