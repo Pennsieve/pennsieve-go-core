@@ -29,7 +29,8 @@ func (c *Client) EmitEvents(ctx context.Context, params MessageParams) error {
 		QueueUrl:    aws.String(c.queueUrl),
 	}
 
-	log.Info(messageInput)
+	log.Info("URL:" + c.queueUrl)
+	log.Info("MESSAGE: " + string(message))
 
 	c.client.SendMessage(ctx, &messageInput)
 
