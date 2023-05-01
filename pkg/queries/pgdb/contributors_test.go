@@ -19,17 +19,19 @@ func TestContributors(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Add Contributor Existing User": testAddContributorExistingUser,
-		"Add Contributor External":      testAddContributorExternal,
-		"Get Contributor By Id":         testGetContributorById,
-		"Get Contributor By User Id":    testGetContributorByUserId,
-		"Get Contributor By Email":      testGetContributorByEmail,
-		"Get Contributor By Orcid":      testGetContributorByOrcid,
-		"Find Contributor by User Id":   testFindContributorByUserId,
-		"Find Contributor by Email":     testFindContributorByEmail,
-		"Find Contributor by Orcid":     testFindContributorByOrcid,
-		"Find Non-existent Contributor": testFindNonexistentContributor,
-		"Add Existing Contributor":      testAddExistingContributor,
+		"Add Contributor Existing User":     testAddContributorExistingUser,
+		"Add Contributor External":          testAddContributorExternal,
+		"Add Contributor With Blank Degree": testAddContributorWithBlankDegree,
+		"Add Contributor Without a Degree":  testAddContributorWithoutDegree,
+		"Get Contributor By Id":             testGetContributorById,
+		"Get Contributor By User Id":        testGetContributorByUserId,
+		"Get Contributor By Email":          testGetContributorByEmail,
+		"Get Contributor By Orcid":          testGetContributorByOrcid,
+		"Find Contributor by User Id":       testFindContributorByUserId,
+		"Find Contributor by Email":         testFindContributorByEmail,
+		"Find Contributor by Orcid":         testFindContributorByOrcid,
+		"Find Non-existent Contributor":     testFindNonexistentContributor,
+		"Add Existing Contributor":          testAddExistingContributor,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -73,6 +75,36 @@ func testAddContributorExternal(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 	assert.Equal(t, newContributor.EmailAddress, contributor.Email)
 	assert.Equal(t, sql.NullString{String: newContributor.Orcid, Valid: true}, contributor.Orcid)
+}
+
+func testAddContributorWithBlankDegree(t *testing.T, store *SQLStore, orgId int) {
+	newContributor := NewContributor{
+		FirstName:    "Blank",
+		LastName:     "Degree",
+		Degree:       "",
+		EmailAddress: "blank.degree@not-pennsieve.org",
+		Orcid:        "0000-0000-0000-5555",
+	}
+
+	contributor, err := store.AddContributor(context.TODO(), newContributor)
+	assert.NoError(t, err)
+	assert.Equal(t, newContributor.EmailAddress, contributor.Email)
+	assert.False(t, contributor.Degree.Valid)
+}
+
+func testAddContributorWithoutDegree(t *testing.T, store *SQLStore, orgId int) {
+	newContributor := NewContributor{
+		FirstName:    "Without",
+		LastName:     "Degree",
+		Degree:       "",
+		EmailAddress: "without.degree@not-pennsieve.org",
+		Orcid:        "0000-0000-0000-6666",
+	}
+
+	contributor, err := store.AddContributor(context.TODO(), newContributor)
+	assert.NoError(t, err)
+	assert.Equal(t, newContributor.EmailAddress, contributor.Email)
+	assert.False(t, contributor.Degree.Valid)
 }
 
 func testGetContributorById(t *testing.T, store *SQLStore, orgId int) {
