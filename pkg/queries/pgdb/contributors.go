@@ -96,7 +96,7 @@ func (q *Queries) AddContributor(ctx context.Context, newContributor NewContribu
 	// the contributor does not exist, so create it
 	if newContributor.UserId > 0 {
 		_, err = q.db.ExecContext(ctx,
-			"INSERT INTO contributors (first_name, middle_initial, last_name, degree, email, orcid, user_id) VALUES($1, $2, $3, $4, $5, $6, $7)",
+			"INSERT INTO contributors (first_name, middle_initial, last_name, degree, email, orcid, user_id) VALUES($1, $2, $3, NULLIF($4, ''), $5, $6, $7)",
 			newContributor.FirstName,
 			newContributor.MiddleInitial,
 			newContributor.LastName,
@@ -106,7 +106,7 @@ func (q *Queries) AddContributor(ctx context.Context, newContributor NewContribu
 			newContributor.UserId)
 	} else {
 		_, err = q.db.ExecContext(ctx,
-			"INSERT INTO contributors (first_name, middle_initial, last_name, degree, email, orcid) VALUES($1, $2, $3, $4, $5, $6)",
+			"INSERT INTO contributors (first_name, middle_initial, last_name, degree, email, orcid) VALUES($1, $2, $3, NULLIF($4, ''), $5, $6)",
 			newContributor.FirstName,
 			newContributor.MiddleInitial,
 			newContributor.LastName,
