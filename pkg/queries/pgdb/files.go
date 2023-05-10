@@ -47,7 +47,8 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 	}
 
 	sqlInsert := "INSERT INTO files(package_id, name, file_type, s3_bucket, s3_key, " +
-		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at) VALUES "
+		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at) VALUES " +
+		"ON CONFLICT (uuid) DO UPDATE SET updated_at=EXCLUDED.updated_at"
 
 	returnRows := "id, package_id, name, file_type, s3_bucket, s3_key, " +
 		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at"
