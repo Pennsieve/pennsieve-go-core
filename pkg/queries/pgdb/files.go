@@ -54,7 +54,7 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 
 	sqlInsert = sqlInsert +
 		strings.Join(inserts, ",") +
-		fmt.Sprintf("ON CONFLICT (uuid) DO UPDATE SET updated_at=EXCLUDED.updated_at RETURNING %s;", returnRows)
+		fmt.Sprintf("ON CONFLICT (uuid) DO UPDATE SET updated_at = EXCLUDED.updated_at WHERE files.s3_bucket = EXCLUDED.s3_bucket AND files.s3_key = EXCLUDED.s3_key RETURNING %s;", returnRows)
 
 	//prepare the statement
 	stmt, err := q.db.PrepareContext(ctx, sqlInsert)

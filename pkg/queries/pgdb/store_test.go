@@ -182,16 +182,18 @@ func addDataset(db *sql.DB) {
 
 }
 
-func addTestDataset(db *sql.DB, datasetName string) {
+func addTestDataset(db *sql.DB, datasetName string) int64 {
 	datasetNodeId := nodeId.NodeId(nodeId.DataSetCode)
 	datasetState := "READY"
 	datasetStatusId := 1
-	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, status_id) VALUES ('%s', '%s', '%s', %d);",
+	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, status_id) VALUES ('%s', '%s', '%s', %d) RETURNING id;",
 		datasetName, datasetNodeId, datasetState, datasetStatusId)
-	_, err := db.Exec(statement)
+	var datasetId int64
+	err := db.QueryRow(statement).Scan(&datasetId)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Unable to add dataset for test: %v", err))
 	}
+	return datasetId
 }
 
 // TestStore is the main Test Suite function for Packages.
