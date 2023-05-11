@@ -9,6 +9,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestFiles(t *testing.T) {
@@ -64,6 +65,7 @@ func testAddFilesDuplicateUUID(t *testing.T, store *SQLStore, orgId int, package
 		UUID:       uuid,
 	}}
 	var actualFileId string
+	var actualFileUpdatedAt time.Time
 	actualFiles, err := store.AddFiles(context.Background(), files)
 	if assert.NoError(t, err) {
 		assert.Len(t, actualFiles, 1)
@@ -72,14 +74,18 @@ func testAddFilesDuplicateUUID(t *testing.T, store *SQLStore, orgId int, package
 		assert.Equal(t, uuid, actualFiles[0].UUID)
 		actualFileId = actualFiles[0].Id
 		assert.NotEmpty(t, actualFileId)
+		actualFileUpdatedAt = actualFiles[0].UpdatedAt
+		assert.NotEmpty(t, actualFileUpdatedAt)
 	}
 	duplicateFiles, err := store.AddFiles(context.Background(), files)
 	if assert.NoError(t, err) {
 		assert.Len(t, duplicateFiles, 1)
-		assert.Equal(t, s3Bucket, duplicateFiles[0].S3Bucket)
-		assert.Equal(t, s3Key, duplicateFiles[0].S3Key)
-		assert.Equal(t, uuid, duplicateFiles[0].UUID)
-		assert.Equal(t, actualFileId, duplicateFiles[0].Id)
+		duplicateFile := duplicateFiles[0]
+		assert.Equal(t, s3Bucket, duplicateFile.S3Bucket)
+		assert.Equal(t, s3Key, duplicateFile.S3Key)
+		assert.Equal(t, uuid, duplicateFile.UUID)
+		assert.Equal(t, actualFileId, duplicateFile.Id)
+		assert.True(t, actualFileUpdatedAt.Before(duplicateFile.UpdatedAt))
 	}
 }
 
@@ -101,14 +107,17 @@ func testAddFilesDuplicateUUIDDifferentS3Key(t *testing.T, store *SQLStore, orgI
 		UUID:       fileUUID,
 	}
 	var actualInitialFileId string
+	var actualInitialUpdatedAt time.Time
 	actualInitialFiles, err := store.AddFiles(context.Background(), []pgdb.FileParams{initialFile})
 	if assert.NoError(t, err) {
 		assert.Len(t, actualInitialFiles, 1)
-		assert.Equal(t, s3Bucket, actualInitialFiles[0].S3Bucket)
-		assert.Equal(t, initialFile.S3Key, actualInitialFiles[0].S3Key)
-		assert.Equal(t, fileUUID, actualInitialFiles[0].UUID)
-		actualInitialFileId = actualInitialFiles[0].Id
+		actualInitialFile := actualInitialFiles[0]
+		assert.Equal(t, s3Bucket, actualInitialFile.S3Bucket)
+		assert.Equal(t, initialFile.S3Key, actualInitialFile.S3Key)
+		assert.Equal(t, fileUUID, actualInitialFile.UUID)
+		actualInitialFileId = actualInitialFile.Id
 		assert.NotEmpty(t, actualInitialFileId)
+		actualInitialUpdatedAt = actualInitialFile.UpdatedAt
 	}
 
 	mistakeFile := pgdb.FileParams{
@@ -136,17 +145,20 @@ func testAddFilesDuplicateUUIDDifferentS3Key(t *testing.T, store *SQLStore, orgI
 	var actualPacakgeId int
 	var actualId, actualBucket, actualKey string
 	var actualUUID uuid.UUID
-	err = store.db.QueryRow("SELECT id, package_id, s3_bucket, s3_key, uuid from files where package_id = $1", packageId).Scan(
+	var actualUpdatedAt time.Time
+	err = store.db.QueryRow("SELECT id, package_id, s3_bucket, s3_key, uuid, updated_at from files where package_id = $1", packageId).Scan(
 		&actualId,
 		&actualPacakgeId,
 		&actualBucket,
 		&actualKey,
-		&actualUUID)
+		&actualUUID,
+		&actualUpdatedAt)
 	if assert.NoError(t, err) {
 		assert.Equal(t, actualInitialFileId, actualId)
 		assert.Equal(t, actualPacakgeId, packageId)
 		assert.Equal(t, actualBucket, s3Bucket)
 		assert.Equal(t, actualKey, initialFile.S3Key)
 		assert.Equal(t, fileUUID, actualUUID)
+		assert.Equal(t, actualInitialUpdatedAt, actualUpdatedAt)
 	}
 }
