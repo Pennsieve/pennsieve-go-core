@@ -227,8 +227,53 @@ func (q *Queries) GetPackageByNodeId(ctx context.Context, nodeId string) (*pgdb.
 
 }
 
+// GetPackageAncestorIds returns an array of Package Ids corresponding with the ancestor Package Ids for the provided package.
+// 	- resulting array includes requested package Id as first entry
+//  - resulting array includes first folder in dataset as last entry if package is in nested folder
+func (q *Queries) GetPackageAncestorIds(ctx context.Context, packageId int64) ([]int64, error) {
+
+	queryStr := "" +
+		"WITH RECURSIVE ancestors(id, parent_id) AS (" +
+		"SELECT " +
+		"packages.id, " +
+		"packages.parent_id " +
+		"FROM packages packages " +
+		"WHERE packages.id = $1 " +
+		"UNION " +
+		"SELECT parents.id, parents.parent_id " +
+		"FROM packages parents " +
+		"JOIN ancestors ON ancestors.parent_id = parents.id" +
+		") " +
+		"SELECT id FROM ancestors "
+
+	rows, err := q.db.QueryContext(ctx, queryStr, packageId)
+	if err != nil {
+		log.Error("Error fetching package ancestors: ", err)
+	}
+
+	var ancestorIds []int64
+	if err == nil {
+		for rows.Next() {
+			var currentRow *int64
+			currentRow = new(int64)
+			err = rows.Scan(&currentRow)
+
+			if err != nil {
+				log.Error("Error scanning package ids from results: ", err)
+				return nil, err
+			}
+			ancestorIds = append(ancestorIds, *currentRow)
+
+		}
+		return ancestorIds, nil
+	}
+	return ancestorIds, err
+}
+
 // PRIVATE
 // AddPackages runs the query to insert a set of packages that belong to the same parent folder.
+// 	- If adding packages to root-folder, the parentId should be set to -1
+//
 // It returns two arrays:
 //  1. successfully created packages,
 //  2. packages that failed to be inserted due to a name constraint.

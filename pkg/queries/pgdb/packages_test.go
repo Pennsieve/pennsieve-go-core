@@ -25,6 +25,7 @@ func TestPackageTable(t *testing.T) {
 		"Test adding packages to root":   testAddingPackagesToRoot,
 		"Test adding nested packages":    testAddingNestedPackages,
 		"Test name expansion":            testNameExpansion,
+		"Test getting ancestor Ids":      testGettingAncestors,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -539,4 +540,74 @@ func testNameExpansion(t *testing.T, _ *SQLStore, _ int) {
 	}
 	expandName(&currentPackage, originalName, 2)
 	assert.Equal(t, "file one (2).txt", currentPackage.Name, "File with existing name should be appended with (2)")
+}
+
+// testGettingAncestors tests that getAncestors method returns list of parent folders.
+func testGettingAncestors(t *testing.T, store *SQLStore, orgId int) {
+	defer test.Truncate(t, store.db, orgId, "packages")
+
+	// ADD FOLDER TO ROOT
+	uploadId, _ := uuid.NewUUID()
+	folder := pgdb.PackageParams{
+		Name:         "Folder1",
+		PackageType:  packageType.Collection,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     -1,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000, // should be ignored
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+
+	folder1, err := store.Queries.AddFolder(context.Background(), folder)
+	assert.NoError(t, err)
+
+	// ADD NESTED FOLDER
+	uploadId, _ = uuid.NewUUID()
+	folder = pgdb.PackageParams{
+		Name:         "Folder1",
+		PackageType:  packageType.Collection,
+		PackageState: packageState.Ready,
+		NodeId:       fmt.Sprintf("N:Package:%s", uploadId.String()),
+		ParentId:     folder1.Id,
+		DatasetId:    1,
+		OwnerId:      1,
+		Size:         1000, // should be ignored
+		ImportId:     sql.NullString{String: uploadId.String(), Valid: true},
+		Attributes:   []packageInfo.PackageAttribute{},
+	}
+
+	folder2, err := store.Queries.AddFolder(context.Background(), folder)
+	assert.NoError(t, err)
+
+	// Test adding packages to root
+	testParams := []test.PackageParams{
+		{Name: "package_1.txt", ParentId: folder2.Id},
+	}
+	insertParams := test.GenerateTestPackages(testParams, 1)
+	results, _, err := store.Queries.addPackageByParent(context.Background(), folder2.Id, insertParams)
+	assert.NoError(t, err)
+
+	ancestorIds, err := store.Queries.GetPackageAncestorIds(context.Background(), results[0].Id)
+	assert.NoError(t, err)
+	assert.Len(t, ancestorIds, 3)
+	assert.Equal(t, ancestorIds[0], results[0].Id, "Expecting first value to be the current package id")
+	assert.Equal(t, ancestorIds[1], folder2.Id, "Expecting first value to be folder for package")
+	assert.Equal(t, ancestorIds[2], folder1.Id, "Expecting second value to be the first folder in the root")
+
+	// ---- Test Add package to Root ----
+	testParams = []test.PackageParams{
+		{Name: "package_root.txt", ParentId: -1},
+	}
+	insertParams = test.GenerateTestPackages(testParams, 1)
+	results, _, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
+	assert.NoError(t, err)
+
+	ancestorIds, err = store.Queries.GetPackageAncestorIds(context.Background(), results[0].Id)
+	assert.NoError(t, err)
+	assert.Len(t, ancestorIds, 1)
+	assert.Equal(t, ancestorIds[0], results[0].Id, "Expecting first value to be the current package id")
+
 }
