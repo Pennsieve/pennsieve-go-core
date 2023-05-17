@@ -57,10 +57,11 @@ type PackageCreateEvent struct {
 }
 
 type PackageRestoreEvent struct {
-	Id     int64          `json:"id"`
-	Name   string         `json:"name,omitempty"`
-	NodeId string         `json:"nodeId,omitempty"`
-	Parent *ParentPackage `json:"parent,omitempty"`
+	Id           int64          `json:"id"`
+	Name         string         `json:"name,omitempty"`
+	OriginalName string         `json:"originalName,omitempty"`
+	NodeId       string         `json:"nodeId,omitempty"`
+	Parent       *ParentPackage `json:"parent,omitempty"`
 }
 
 type Event struct {
