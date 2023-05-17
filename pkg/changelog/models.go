@@ -11,6 +11,7 @@ type Type int64
 const (
 	CreatePackage Type = iota
 	DeletePackage
+	RestorePackage
 )
 
 func (s Type) MarshalJSON() ([]byte, error) {
@@ -26,6 +27,8 @@ func (s Type) String() string {
 		return "CREATE_PACKAGE"
 	case DeletePackage:
 		return "DELETE_PACKAGE"
+	case RestorePackage:
+		return "RESTORE_PACKAGE"
 	}
 
 	return "UNKNOWN"
@@ -50,7 +53,15 @@ type PackageCreateEvent struct {
 	Id     int64          `json:"id"`
 	Name   string         `json:"name"`
 	NodeId string         `json:"nodeId"`
-	parent *ParentPackage `json:"parent"`
+	Parent *ParentPackage `json:"parent"`
+}
+
+type PackageRestoreEvent struct {
+	Id           int64          `json:"id"`
+	Name         string         `json:"name,omitempty"`
+	OriginalName string         `json:"originalName,omitempty"`
+	NodeId       string         `json:"nodeId,omitempty"`
+	Parent       *ParentPackage `json:"parent,omitempty"`
 }
 
 type Event struct {
