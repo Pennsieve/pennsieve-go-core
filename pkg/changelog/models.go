@@ -53,7 +53,7 @@ type PackageCreateEvent struct {
 	Id     int64          `json:"id"`
 	Name   string         `json:"name"`
 	NodeId string         `json:"nodeId"`
-	parent *ParentPackage `json:"parent"`
+	Parent *ParentPackage `json:"parent"`
 }
 
 type PackageRestoreEvent struct {
