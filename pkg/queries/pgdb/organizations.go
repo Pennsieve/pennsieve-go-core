@@ -37,7 +37,7 @@ func (q *Queries) GetOrganization(ctx context.Context, id int64) (*pgdb.Organiza
 	}
 }
 
-// GetOrganization returns a single organization
+// GetOrganizationByNodeId returns a single organization
 func (q *Queries) GetOrganizationByNodeId(ctx context.Context, nodeId string) (*pgdb.Organization, error) {
 
 	queryStr := "SELECT id, name, slug, node_id, storage_bucket, publish_bucket, embargo_bucket, created_at, updated_at " +
