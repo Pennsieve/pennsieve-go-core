@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 	testDB[0] = db0
 	addUsers(db0)
 	addUsersToOrganizations(db0)
+	addOrganization(db0)
 
 	db1, err := ConnectENVWithOrg(1)
 	if err != nil {
@@ -52,6 +53,14 @@ func TestMain(m *testing.M) {
 	addContributors(db3)
 
 	os.Exit(m.Run())
+}
+
+func addOrganization(db *sql.DB) {
+	statement := "INSERT INTO pennsieve.organizations (id, node_id, name, slug, encryption_key_id) VALUES ($1, $2, $3, $4, $5)"
+	_, err := db.Exec(statement, 42, "N:organization:2b809c6f-9941-47a2-9593-9540fbe77ff1", "Ultimate", "ultimate", "NO_ENCRYPTION_KEY")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("unable to add organization"))
+	}
 }
 
 func addUsers(db *sql.DB) {
