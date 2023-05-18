@@ -36,3 +36,33 @@ func (q *Queries) GetOrganization(ctx context.Context, id int64) (*pgdb.Organiza
 		panic(err)
 	}
 }
+
+// GetOrganization returns a single organization
+func (q *Queries) GetOrganizationByNodeId(ctx context.Context, nodeId string) (*pgdb.Organization, error) {
+
+	queryStr := "SELECT id, name, slug, node_id, storage_bucket, publish_bucket, embargo_bucket, created_at, updated_at " +
+		"FROM pennsieve.organizations WHERE node_id=$1;"
+
+	var organization pgdb.Organization
+	row := q.db.QueryRowContext(ctx, queryStr, nodeId)
+	err := row.Scan(
+		&organization.Id,
+		&organization.Name,
+		&organization.Slug,
+		&organization.NodeId,
+		&organization.StorageBucket,
+		&organization.PublishBucket,
+		&organization.EmbargoBucket,
+		&organization.CreatedAt,
+		&organization.UpdatedAt)
+
+	switch err {
+	case sql.ErrNoRows:
+		log.Error("No rows were returned!")
+		return nil, err
+	case nil:
+		return &organization, nil
+	default:
+		panic(err)
+	}
+}
