@@ -15,6 +15,7 @@ func TestOrganizationUser(t *testing.T) {
 		"Add Organization User":           testAddOrganizationUser,
 		"Add Existing OrgUser Membership": testAddExistingOrgUserMembership,
 		"Add Guest to Organization":       testAddGuestToOrganization,
+		"Get Organization Claim":          testGetOrganizationClaim,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -69,4 +70,20 @@ func testAddGuestToOrganization(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, userId, orgUser.UserId)
 	assert.Equal(t, organizationId, orgUser.OrganizationId)
 	assert.Equal(t, permissionBit, orgUser.DbPermission)
+}
+
+func testGetOrganizationClaim(t *testing.T, store *SQLStore, orgId int) {
+	userId := int64(1001)
+	organizationId := int64(1)
+
+	// get the organization so that we can check NodeId
+	org, err := store.GetOrganization(context.TODO(), organizationId)
+	assert.NoError(t, err)
+	assert.Equal(t, organizationId, org.Id)
+
+	// get the organization claim
+	orgClaim, err := store.GetOrganizationClaim(context.TODO(), userId, organizationId)
+	assert.NoError(t, err)
+	assert.Equal(t, organizationId, orgClaim.IntId)
+	assert.Equal(t, org.NodeId, orgClaim.NodeId)
 }

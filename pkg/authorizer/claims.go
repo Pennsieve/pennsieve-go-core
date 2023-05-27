@@ -26,6 +26,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		orgClaim = organization.Claim{
 			Role:            pgdb.DbPermission(orgRole),
 			IntId:           int64(orgClaims["IntId"].(float64)),
+			NodeId:          orgClaims["NodeId"].(string),
 			EnabledFeatures: nil,
 		}
 	}

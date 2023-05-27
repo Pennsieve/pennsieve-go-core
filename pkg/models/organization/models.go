@@ -9,6 +9,7 @@ import (
 type Claim struct {
 	Role            pgdb.DbPermission
 	IntId           int64
+	NodeId          string
 	EnabledFeatures []pgdb.FeatureFlags
 }
 
