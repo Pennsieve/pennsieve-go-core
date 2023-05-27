@@ -12,6 +12,10 @@ import (
 
 var testDB map[int]*sql.DB
 
+var publishingTeamId int64
+var publishingTeamName string
+var publishingTeamNodeId string
+
 func TestMain(m *testing.M) {
 	var err error
 
@@ -25,6 +29,9 @@ func TestMain(m *testing.M) {
 	addUsers(db0)
 	addUsersToOrganizations(db0)
 	addOrganization(db0)
+	addPublishingTeam(db0)
+	addTeamToOrganization(db0, 1, publishingTeamId, "publishers")
+	addUserToTeam(db0, 1001, publishingTeamId)
 
 	db1, err := ConnectENVWithOrg(1)
 	if err != nil {
@@ -115,6 +122,37 @@ func addUsersToOrganizations(db *sql.DB) {
 			log.Fatal(fmt.Sprintf("unable to add organization membership org: %d user : %d perm: %d",
 				membership.organizationId, membership.userId, membership.permissionBit))
 		}
+	}
+}
+
+func addPublishingTeam(db *sql.DB) {
+	publishingTeamId = 999
+	publishingTeamName = "Publishers"
+	publishingTeamNodeId = "N:team:10534606-9c55-409a-99bd-503f3e873c69"
+	statement := "INSERT INTO pennsieve.teams (id, name, node_id) VALUES ($1, $2, $3);"
+
+	_, err := db.Exec(statement, publishingTeamId, publishingTeamName, publishingTeamNodeId)
+	if err != nil {
+		log.Fatal("failed to add publishing team")
+	}
+}
+
+func addTeamToOrganization(db *sql.DB, orgId int64, teamId int64, teamType string) {
+	statement := "INSERT INTO pennsieve.organization_team (organization_id, team_id, permission_bit, system_team_type) " +
+		"VALUES ($1, $2, $3, NULLIF($4, ''))"
+
+	_, err := db.Exec(statement, orgId, teamId, 16, teamType)
+	if err != nil {
+		log.Fatal("failed to add team to organization")
+	}
+}
+
+func addUserToTeam(db *sql.DB, userId int64, teamId int64) {
+	statement := "INSERT INTO pennsieve.team_user (team_id, user_id, permission_bit VALUES($1, $2, $3)"
+
+	_, err := db.Exec(statement, teamId, userId, 8)
+	if err != nil {
+		log.Fatal("failed to add user to team")
 	}
 }
 
