@@ -16,6 +16,10 @@ var publishingTeamId int64
 var publishingTeamName string
 var publishingTeamNodeId string
 
+func logFatalError(message string, err error) {
+	log.Fatal(fmt.Sprintf("%s (error: %+v)", message, err))
+}
+
 func TestMain(m *testing.M) {
 	var err error
 
@@ -133,7 +137,7 @@ func addPublishingTeam(db *sql.DB) {
 
 	_, err := db.Exec(statement, publishingTeamId, publishingTeamName, publishingTeamNodeId)
 	if err != nil {
-		log.Fatal("failed to add publishing team")
+		logFatalError("failed to add publishing team", err)
 	}
 }
 
@@ -143,16 +147,16 @@ func addTeamToOrganization(db *sql.DB, orgId int64, teamId int64, teamType strin
 
 	_, err := db.Exec(statement, orgId, teamId, 16, teamType)
 	if err != nil {
-		log.Fatal("failed to add team to organization")
+		logFatalError("failed to add team to organization", err)
 	}
 }
 
 func addUserToTeam(db *sql.DB, userId int64, teamId int64) {
-	statement := "INSERT INTO pennsieve.team_user (team_id, user_id, permission_bit VALUES($1, $2, $3)"
+	statement := "INSERT INTO pennsieve.team_user (team_id, user_id, permission_bit) VALUES($1, $2, $3)"
 
 	_, err := db.Exec(statement, teamId, userId, 8)
 	if err != nil {
-		log.Fatal("failed to add user to team")
+		logFatalError("failed to add user to team", err)
 	}
 }
 
