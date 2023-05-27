@@ -103,9 +103,15 @@ func (q *Queries) AddOrganizationUser(ctx context.Context, orgId int64, userId i
 // GetOrganizationClaim returns an organization claim for a specific user.
 func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organizationId int64) (*organization.Claim, error) {
 
-	currentOrgUser, err := q.GetOrganizationUserById(ctx, userId)
+	currentOrgUser, err := q.GetOrganizationUser(ctx, organizationId, userId)
 	if err != nil {
 		log.Error("Unable to check Org User: ", err)
+		return nil, err
+	}
+
+	org, err := q.GetOrganization(ctx, organizationId)
+	if err != nil {
+		log.Error("Unable to check Organization: ", err)
 		return nil, err
 	}
 
@@ -118,6 +124,7 @@ func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organi
 	orgRole := organization.Claim{
 		Role:            currentOrgUser.DbPermission,
 		IntId:           organizationId,
+		NodeId:          org.NodeId,
 		EnabledFeatures: allFeatures,
 	}
 
