@@ -6,6 +6,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/permissions"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/teamUser"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
 )
 
@@ -14,6 +15,7 @@ type Claims struct {
 	OrgClaim     organization.Claim
 	DatasetClaim dataset.Claim
 	UserClaim    user.Claim
+	TeamClaims   []teamUser.Claim
 }
 
 // ParseClaims creates a Claims object from a string map which is returned by the authorizer.
