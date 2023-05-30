@@ -73,13 +73,13 @@ func (q *Queries) GetTeamMemberships(ctx context.Context, userId int64) ([]UserT
 			&utm.TeamType,
 		)
 		if err != nil {
-			// TODO: handle error on scan
+			log.Error(fmt.Sprintf("error scanning user team membership row (error: %+v)", err))
 		}
 		userTeamMemberships = append(userTeamMemberships, utm)
 	}
 
 	if err != nil {
-		log.Error("Unable to check User Team Membership (Publishers): ", err)
+		log.Error(fmt.Sprintf("unable to check user team membership (error: %+v)", err))
 		return nil, err
 	}
 
@@ -89,6 +89,7 @@ func (q *Queries) GetTeamMemberships(ctx context.Context, userId int64) ([]UserT
 func (q *Queries) GetTeamClaims(ctx context.Context, userId int64) ([]teamUser.Claim, error) {
 	userTeamMemberships, err := q.GetTeamMemberships(ctx, userId)
 	if err != nil {
+		log.Error(fmt.Sprintf("unable to get user team memberships (error: %+v)", err))
 		return nil, err
 	}
 
