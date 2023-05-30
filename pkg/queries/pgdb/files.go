@@ -52,7 +52,9 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 	returnRows := "id, package_id, name, file_type, s3_bucket, s3_key, " +
 		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at"
 
-	sqlInsert = sqlInsert + strings.Join(inserts, ",") + fmt.Sprintf("RETURNING %s;", returnRows)
+	sqlInsert = sqlInsert +
+		strings.Join(inserts, ",") +
+		fmt.Sprintf("ON CONFLICT (uuid) DO UPDATE SET updated_at = EXCLUDED.updated_at WHERE files.s3_bucket = EXCLUDED.s3_bucket AND files.s3_key = EXCLUDED.s3_key RETURNING %s;", returnRows)
 
 	//prepare the statement
 	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
