@@ -12,6 +12,9 @@ import (
 
 var testDB map[int]*sql.DB
 
+var researchTeamId int64
+var researchTeamName string
+var researchTeamNodeId string
 var publishingTeamId int64
 var publishingTeamName string
 var publishingTeamNodeId string
@@ -33,8 +36,11 @@ func TestMain(m *testing.M) {
 	addUsers(db0)
 	addUsersToOrganizations(db0)
 	addOrganization(db0)
+	addResearchTeam(db0)
 	addPublishingTeam(db0)
+	addTeamToOrganization(db0, 1, researchTeamId, "")
 	addTeamToOrganization(db0, 1, publishingTeamId, "publishers")
+	addUserToTeam(db0, 1001, researchTeamId)
 	addUserToTeam(db0, 1001, publishingTeamId)
 
 	db1, err := ConnectENVWithOrg(1)
@@ -129,16 +135,26 @@ func addUsersToOrganizations(db *sql.DB) {
 	}
 }
 
+func addTeam(db *sql.DB, teamId int64, teamName string, teamNodeId string) {
+	statement := "INSERT INTO pennsieve.teams (id, name, node_id) VALUES ($1, $2, $3);"
+
+	_, err := db.Exec(statement, teamId, teamName, teamNodeId)
+	if err != nil {
+		logFatalError("failed to add team", err)
+	}
+}
+func addResearchTeam(db *sql.DB) {
+	researchTeamId = 998
+	researchTeamName = "Research"
+	researchTeamNodeId = "N:team:10534606-9c55-409a-99bd-503f3e873c68"
+	addTeam(db, researchTeamId, researchTeamName, researchTeamNodeId)
+}
+
 func addPublishingTeam(db *sql.DB) {
 	publishingTeamId = 999
 	publishingTeamName = "Publishers"
 	publishingTeamNodeId = "N:team:10534606-9c55-409a-99bd-503f3e873c69"
-	statement := "INSERT INTO pennsieve.teams (id, name, node_id) VALUES ($1, $2, $3);"
-
-	_, err := db.Exec(statement, publishingTeamId, publishingTeamName, publishingTeamNodeId)
-	if err != nil {
-		logFatalError("failed to add publishing team", err)
-	}
+	addTeam(db, publishingTeamId, publishingTeamName, publishingTeamNodeId)
 }
 
 func addTeamToOrganization(db *sql.DB, orgId int64, teamId int64, teamType string) {

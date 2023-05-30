@@ -3,6 +3,7 @@ package pgdb
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/teamUser"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ type UserTeamMembership struct {
 	TeamType          sql.NullString
 }
 
-func (q *Queries) GetPublishersClaim(ctx context.Context, orgId int64, userId int64) (*teamUser.Claim, error) {
+func (q *Queries) GetTeamMemberships(ctx context.Context, userId int64) ([]UserTeamMembership, error) {
 	query := "select " +
 		"  u.id as user_id, " +
 		"  u.email as user_email, " +
@@ -44,45 +45,72 @@ func (q *Queries) GetPublishersClaim(ctx context.Context, orgId int64, userId in
 		"left join pennsieve.teams t on ot.team_id=t.id " +
 		"join pennsieve.team_user tu on tu.team_id=t.id and tu.user_id=u.id " +
 		"where u.id=$1 " +
-		"  and o.id=$2 " +
-		"  and ot.system_team_type='publishers';"
+		"  and o.id=u.preferred_org_id;"
 
-	var utm UserTeamMembership
-	row := q.db.QueryRowContext(ctx, query, userId, orgId)
-	err := row.Scan(
-		&utm.UserId,
-		&utm.UserEmail,
-		&utm.UserNodeId,
-		&utm.OrgId,
-		&utm.OrgName,
-		&utm.OrgNodeId,
-		&utm.OrgUserPermission,
-		&utm.TeamId,
-		&utm.TeamName,
-		&utm.TeamNodeId,
-		&utm.TeamPermission,
-		&utm.TeamType,
-	)
-
+	// exec query
+	rows, err := q.db.QueryContext(ctx, query, userId)
 	if err != nil {
-		log.Error("Unable to check User Team Membership (Publishers): ", err)
+		log.Error(fmt.Sprintf("error querying for user team memberships (error: %+v)", err))
 		return nil, err
 	}
 
-	var teamType string
-	if utm.TeamType.Valid {
-		teamType = utm.TeamType.String
-	} else {
-		teamType = "<none>"
+	// iterate over rows, scan to struct
+	var userTeamMemberships []UserTeamMembership
+	for rows.Next() {
+		var utm UserTeamMembership
+		err = rows.Scan(
+			&utm.UserId,
+			&utm.UserEmail,
+			&utm.UserNodeId,
+			&utm.OrgId,
+			&utm.OrgName,
+			&utm.OrgNodeId,
+			&utm.OrgUserPermission,
+			&utm.TeamId,
+			&utm.TeamName,
+			&utm.TeamNodeId,
+			&utm.TeamPermission,
+			&utm.TeamType,
+		)
+		if err != nil {
+			log.Error(fmt.Sprintf("error scanning user team membership row (error: %+v)", err))
+		}
+		userTeamMemberships = append(userTeamMemberships, utm)
 	}
 
-	claim := teamUser.Claim{
-		IntId:      utm.TeamId,
-		Name:       utm.TeamName,
-		NodeId:     utm.TeamNodeId,
-		Permission: utm.TeamPermission,
-		TeamType:   teamType,
+	if err != nil {
+		log.Error(fmt.Sprintf("unable to check user team membership (error: %+v)", err))
+		return nil, err
 	}
 
-	return &claim, nil
+	return userTeamMemberships, nil
+}
+
+func (q *Queries) GetTeamClaims(ctx context.Context, userId int64) ([]teamUser.Claim, error) {
+	userTeamMemberships, err := q.GetTeamMemberships(ctx, userId)
+	if err != nil {
+		log.Error(fmt.Sprintf("unable to get user team memberships (error: %+v)", err))
+		return nil, err
+	}
+
+	var teamClaims []teamUser.Claim
+	for _, membership := range userTeamMemberships {
+		var teamType string
+		if membership.TeamType.Valid {
+			teamType = membership.TeamType.String
+		} else {
+			teamType = "<none>"
+		}
+		claim := teamUser.Claim{
+			IntId:      membership.TeamId,
+			Name:       membership.TeamName,
+			NodeId:     membership.TeamNodeId,
+			Permission: membership.TeamPermission,
+			TeamType:   teamType,
+		}
+
+		teamClaims = append(teamClaims, claim)
+	}
+
+	return teamClaims, nil
 }

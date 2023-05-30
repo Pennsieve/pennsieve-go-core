@@ -6,6 +6,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/permissions"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/teamUser"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
 )
 
@@ -14,6 +15,7 @@ type Claims struct {
 	OrgClaim     organization.Claim
 	DatasetClaim dataset.Claim
 	UserClaim    user.Claim
+	TeamClaims   []teamUser.Claim
 }
 
 // ParseClaims creates a Claims object from a string map which is returned by the authorizer.
@@ -56,14 +58,32 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		}
 	}
 
+	var teamClaims []teamUser.Claim
+	if val, ok := claims["team_claims"]; ok {
+		if val != nil {
+			tcs := val.([]map[string]interface{})
+			for _, tc := range tcs {
+
+				teamClaim := teamUser.Claim{
+					IntId:      tc["IntId"].(int64),
+					Name:       tc["Name"].(string),
+					NodeId:     tc["NodeId"].(string),
+					Permission: pgdb.DbPermission(tc["Permission"].(int64)),
+					TeamType:   tc["TeamType"].(string),
+				}
+				teamClaims = append(teamClaims, teamClaim)
+			}
+		}
+	}
+
 	returnedClaims := Claims{
 		OrgClaim:     orgClaim,
 		DatasetClaim: datasetClaim,
 		UserClaim:    userClaim,
+		TeamClaims:   teamClaims,
 	}
 
 	return &returnedClaims
-
 }
 
 // HasRole returns a boolean indicating whether the user has the correct permissions.
@@ -75,4 +95,18 @@ func HasRole(claims Claims, permission permissions.DatasetPermission) bool {
 
 	return hasValidPermissions
 
+}
+
+// IsPublisher returns a boolean indicating whether the user is on the Publishing team
+func IsPublisher(claims *Claims) bool {
+	isPublisher := false
+
+	for _, claim := range claims.TeamClaims {
+		if claim.TeamType == "publishers" {
+			isPublisher = true
+			break
+		}
+	}
+
+	return isPublisher
 }
