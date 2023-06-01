@@ -1,6 +1,7 @@
 package authorizer
 
 import (
+	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
@@ -8,6 +9,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/teamUser"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
+	log "github.com/sirupsen/logrus"
 )
 
 // Claims is an object containing claims and user info
@@ -20,6 +22,7 @@ type Claims struct {
 
 // ParseClaims creates a Claims object from a string map which is returned by the authorizer.
 func ParseClaims(claims map[string]interface{}) *Claims {
+	log.Info(fmt.Sprintf("ParseClaims() claims: %+v", claims))
 
 	var orgClaim organization.Claim
 	if val, ok := claims["org_claim"]; ok {
