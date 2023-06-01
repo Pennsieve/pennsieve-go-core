@@ -68,10 +68,10 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 			for _, item := range tcs {
 				tc := item.(map[string]interface{})
 				teamClaim := teamUser.Claim{
-					IntId:      tc["IntId"].(int64),
+					IntId:      int64(tc["IntId"].(float64)),
 					Name:       tc["Name"].(string),
 					NodeId:     tc["NodeId"].(string),
-					Permission: pgdb.DbPermission(tc["Permission"].(int64)),
+					Permission: pgdb.DbPermission(int64(tc["Permission"].(float64))),
 					TeamType:   tc["TeamType"].(string),
 				}
 				teamClaims = append(teamClaims, teamClaim)

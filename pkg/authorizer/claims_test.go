@@ -44,10 +44,10 @@ func generated(withTeamClaims bool, withPublishingTeam bool) map[string]interfac
 
 	if withTeamClaims {
 		teamClaim := make(map[string]interface{})
-		teamClaim["IntId"] = int64(2004)
+		teamClaim["IntId"] = float64(2004)
 		teamClaim["Name"] = "Researchers"
 		teamClaim["NodeId"] = "N:team:c20158f5-62c8-47b6-84c4-bc848b1a1313"
-		teamClaim["Permission"] = int64(8)
+		teamClaim["Permission"] = float64(8)
 		teamClaim["TeamType"] = ""
 
 		teamClaims = append(teamClaims, teamClaim)
@@ -55,10 +55,10 @@ func generated(withTeamClaims bool, withPublishingTeam bool) map[string]interfac
 
 	if withPublishingTeam {
 		teamClaim := make(map[string]interface{})
-		teamClaim["IntId"] = int64(2005)
+		teamClaim["IntId"] = float64(2005)
 		teamClaim["Name"] = "Publishers"
 		teamClaim["NodeId"] = "N:team:0bb8fd6d-4560-413e-9488-d3fe8c8459c0"
-		teamClaim["Permission"] = int64(8)
+		teamClaim["Permission"] = float64(8)
 		teamClaim["TeamType"] = "publishers"
 
 		teamClaims = append(teamClaims, teamClaim)
