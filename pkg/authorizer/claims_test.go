@@ -40,7 +40,7 @@ func generated(withTeamClaims bool, withPublishingTeam bool) map[string]interfac
 	userClaim["NodeId"] = "N:user:bb469ddb-82c5-405d-a700-7630bf49c388"
 	userClaim["IsSuperAdmin"] = false
 
-	var teamClaims []map[string]interface{}
+	var teamClaims []interface{}
 
 	if withTeamClaims {
 		teamClaim := make(map[string]interface{})
