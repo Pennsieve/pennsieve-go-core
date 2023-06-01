@@ -15,6 +15,7 @@ func TestClaims(t *testing.T) {
 		"Parse Claims":     testParseClaims,
 		"Is Publisher":     testIsPublisher,
 		"Is Not Publisher": testIsNotPublisher,
+		"No Team Claims":   testNoTeamClaims,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			fn(t)
@@ -22,7 +23,7 @@ func TestClaims(t *testing.T) {
 	}
 }
 
-func generated(withPublishingTeam bool) map[string]interface{} {
+func generated(withTeamClaims bool, withPublishingTeam bool) map[string]interface{} {
 	orgClaim := make(map[string]interface{})
 	orgClaim["Role"] = float64(16)
 	orgClaim["IntId"] = float64(2001)
@@ -41,14 +42,16 @@ func generated(withPublishingTeam bool) map[string]interface{} {
 
 	var teamClaims []map[string]interface{}
 
-	teamClaim := make(map[string]interface{})
-	teamClaim["IntId"] = int64(2004)
-	teamClaim["Name"] = "Researchers"
-	teamClaim["NodeId"] = "N:team:c20158f5-62c8-47b6-84c4-bc848b1a1313"
-	teamClaim["Permission"] = int64(8)
-	teamClaim["TeamType"] = ""
+	if withTeamClaims {
+		teamClaim := make(map[string]interface{})
+		teamClaim["IntId"] = int64(2004)
+		teamClaim["Name"] = "Researchers"
+		teamClaim["NodeId"] = "N:team:c20158f5-62c8-47b6-84c4-bc848b1a1313"
+		teamClaim["Permission"] = int64(8)
+		teamClaim["TeamType"] = ""
 
-	teamClaims = append(teamClaims, teamClaim)
+		teamClaims = append(teamClaims, teamClaim)
+	}
 
 	if withPublishingTeam {
 		teamClaim := make(map[string]interface{})
@@ -72,7 +75,7 @@ func generated(withPublishingTeam bool) map[string]interface{} {
 }
 
 func testParseClaims(t *testing.T) {
-	response := generated(false)
+	response := generated(true, false)
 	claims := ParseClaims(response)
 	assert.NotNil(t, claims.OrgClaim)
 	assert.NotNil(t, claims.DatasetClaim)
@@ -80,7 +83,7 @@ func testParseClaims(t *testing.T) {
 }
 
 func testIsPublisher(t *testing.T) {
-	response := generated(true)
+	response := generated(true, true)
 	claims := ParseClaims(response)
 	assert.NotNil(t, claims.OrgClaim)
 	assert.NotNil(t, claims.DatasetClaim)
@@ -89,7 +92,16 @@ func testIsPublisher(t *testing.T) {
 }
 
 func testIsNotPublisher(t *testing.T) {
-	response := generated(false)
+	response := generated(true, false)
+	claims := ParseClaims(response)
+	assert.NotNil(t, claims.OrgClaim)
+	assert.NotNil(t, claims.DatasetClaim)
+	assert.NotNil(t, claims.UserClaim)
+	assert.False(t, IsPublisher(claims))
+}
+
+func testNoTeamClaims(t *testing.T) {
+	response := generated(false, false)
 	claims := ParseClaims(response)
 	assert.NotNil(t, claims.OrgClaim)
 	assert.NotNil(t, claims.DatasetClaim)
