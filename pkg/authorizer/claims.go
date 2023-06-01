@@ -64,9 +64,9 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 	var teamClaims []teamUser.Claim
 	if val, ok := claims["team_claims"]; ok {
 		if val != nil {
-			tcs := val.([]map[string]interface{})
-			for _, tc := range tcs {
-
+			tcs := val.([]interface{})
+			for _, item := range tcs {
+				tc := item.(map[string]interface{})
 				teamClaim := teamUser.Claim{
 					IntId:      tc["IntId"].(int64),
 					Name:       tc["Name"].(string),
