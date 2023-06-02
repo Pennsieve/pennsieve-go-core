@@ -1,7 +1,6 @@
 package authorizer
 
 import (
-	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
@@ -22,7 +21,7 @@ type Claims struct {
 
 // ParseClaims creates a Claims object from a string map which is returned by the authorizer.
 func ParseClaims(claims map[string]interface{}) *Claims {
-	log.Info(fmt.Sprintf("ParseClaims() claims: %+v", claims))
+	log.WithFields(log.Fields{"service": "Authorizer", "function": "ParseClaims()", "claims": claims}).Debug()
 
 	var orgClaim organization.Claim
 	if val, ok := claims["org_claim"]; ok {
@@ -79,14 +78,15 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		}
 	}
 
-	returnedClaims := Claims{
+	parsedClaims := Claims{
 		OrgClaim:     orgClaim,
 		DatasetClaim: datasetClaim,
 		UserClaim:    userClaim,
 		TeamClaims:   teamClaims,
 	}
+	log.WithFields(log.Fields{"service": "Authorizer", "function": "ParseClaims()", "parsedClaims": parsedClaims}).Debug()
 
-	return &returnedClaims
+	return &parsedClaims
 }
 
 // HasRole returns a boolean indicating whether the user has the correct permissions.
