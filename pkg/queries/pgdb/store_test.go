@@ -3,11 +3,12 @@ package pgdb
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"testing"
 )
 
 var testDB map[int]*sql.DB
@@ -28,7 +29,7 @@ func TestMain(m *testing.M) {
 
 	testDB = make(map[int]*sql.DB)
 
-	db0, err := ConnectENV()
+	db0, err := ConnectRDS()
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
