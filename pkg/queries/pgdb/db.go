@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
+
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"strconv"
 )
 
 // From https://dev.to/techschoolguru/a-clean-way-to-implement-database-transaction-in-golang-2ba
@@ -61,10 +62,16 @@ func (q *Queries) WithOrg(orgId int) (*Queries, error) {
 // The Lambda function leverages IAM roles to gain access to the DB Proxy.
 // The function does NOT set the search_path to the organization schema.
 // Requires following LAMBDA ENV VARIABLES:
-// 		- RDS_PROXY_ENDPOINT
-//		- REGION
-//		- ENV
+//   - RDS_PROXY_ENDPOINT
+//   - REGION
+//   - ENV
+//
+// If ENV is set to DOCKER, the call is redirected to ConnectENV()
 func ConnectRDS() (*sql.DB, error) {
+	DOCKER_ENV := "DOCKER"
+	if os.Getenv("ENV") == DOCKER_ENV {
+		return ConnectENV()
+	}
 	var dbName string = "pennsieve_postgres"
 	var dbUser string = fmt.Sprintf("%s_rds_proxy_user", os.Getenv("ENV"))
 	var dbHost string = os.Getenv("RDS_PROXY_ENDPOINT")
