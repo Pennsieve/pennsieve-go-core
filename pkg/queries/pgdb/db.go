@@ -68,12 +68,13 @@ func (q *Queries) WithOrg(orgId int) (*Queries, error) {
 //
 // If ENV is set to DOCKER, the call is redirected to ConnectENV()
 func ConnectRDS() (*sql.DB, error) {
+	ENV := os.Getenv("ENV")
 	DOCKER_ENV := "DOCKER"
-	if os.Getenv("ENV") == DOCKER_ENV {
+	if ENV == DOCKER_ENV {
 		return ConnectENV()
 	}
 	var dbName string = "pennsieve_postgres"
-	var dbUser string = fmt.Sprintf("%s_rds_proxy_user", os.Getenv("ENV"))
+	var dbUser string = fmt.Sprintf("%s_rds_proxy_user", ENV)
 	var dbHost string = os.Getenv("RDS_PROXY_ENDPOINT")
 	var dbPort int = 5432
 	var dbEndpoint string = fmt.Sprintf("%s:%d", dbHost, dbPort)
