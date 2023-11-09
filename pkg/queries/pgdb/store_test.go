@@ -35,6 +35,7 @@ func TestMain(m *testing.M) {
 	}
 	testDB[0] = db0
 	addUsers(db0)
+	addIntegrationUsers(db0)
 	addUsersToOrganizations(db0)
 	addOrganization(db0)
 	addResearchTeam(db0)
@@ -81,18 +82,27 @@ func addOrganization(db *sql.DB) {
 	}
 }
 
-func addUsers(db *sql.DB) {
-	type Users struct {
-		userId         int64
-		nodeId         string
-		emailAddress   string
-		firstName      string
-		lastName       string
-		preferredOrgId int64
-		cognitoId      string
-		isSuperAdmin   string
-	}
+type Users struct {
+	userId         int64
+	nodeId         string
+	emailAddress   string
+	firstName      string
+	lastName       string
+	preferredOrgId int64
+	cognitoId      string
+	isSuperAdmin   string
+}
 
+type TokenUsers struct {
+	tokenId        int64
+	userId         int64
+	organizationId int64
+	token          string
+	name           string
+	cognitoId      string
+}
+
+func addUsers(db *sql.DB) {
 	users := []Users{
 		{userId: 1001, nodeId: "N:user:1", emailAddress: "user1@pennsieve.org", firstName: "one", lastName: "user", preferredOrgId: 1, cognitoId: "11111111-1111-1111-1111-111111111111", isSuperAdmin: "f"},
 		{userId: 1002, nodeId: "N:user:2", emailAddress: "user2@pennsieve.org", firstName: "two", lastName: "user", preferredOrgId: 2, cognitoId: "22222222-2222-2222-2222-222222222222", isSuperAdmin: "f"},
@@ -111,6 +121,42 @@ func addUsers(db *sql.DB) {
 	}
 }
 
+func addIntegrationUsers(db *sql.DB) {
+	// 1. insert into Users table: these users do not have a preferred organization id
+	users := []Users{
+		{userId: 2001, nodeId: "N:user:2001", emailAddress: "", firstName: "integration", lastName: "user", preferredOrgId: -1, cognitoId: "00000000-1111-0000-1111-000000002001", isSuperAdmin: "f"},
+	}
+
+	insertUserStatement := "INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, cognito_id, is_super_admin)" +
+		"VALUES($1, $2, $3, $4, $5, $6, $7);"
+
+	for _, user := range users {
+		_, err := db.Exec(insertUserStatement, user.userId, user.nodeId, user.emailAddress, user.firstName, user.lastName, user.cognitoId, user.isSuperAdmin)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add user with userId: %d", user.userId))
+		}
+	}
+
+	// 2. insert into Tokens table
+	//      tokenId maps to `id` (the unique, sequence value)
+	//      userId maps to `user_id` (the fk to the Users table)
+	//      token: is the API Token (used to authenticate)
+	//      cognitoId: is the 'sub' in Cognito (username / identifier)
+	tokenUsers := []TokenUsers{
+		{tokenId: 1002, userId: 2001, organizationId: 1, token: "00000000-1111-0000-2222-000000002001", cognitoId: "00000000-1111-0000-3333-000000002001", name: "integration user"},
+	}
+
+	insertTokenStatement := "INSERT INTO pennsieve.tokens (id, user_id, organization_id, token, cognito_id, name) VALUES($1, $2, $3, $4, $5, $6)"
+
+	for _, token := range tokenUsers {
+		_, err := db.Exec(insertTokenStatement, token.tokenId, token.userId, token.organizationId, token.token, token.cognitoId, token.name)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("unable to add token with tokenId: %d (error: %+v)", token.tokenId, err))
+		}
+	}
+
+}
+
 func addUsersToOrganizations(db *sql.DB) {
 	type OrgUserPermission struct {
 		organizationId int64
@@ -123,6 +169,7 @@ func addUsersToOrganizations(db *sql.DB) {
 		{organizationId: 2, userId: 1002, permissionBit: pgdb.Delete},
 		{organizationId: 3, userId: 1003, permissionBit: pgdb.Delete},
 		{organizationId: 3, userId: 1004, permissionBit: pgdb.Delete},
+		{organizationId: 1, userId: 2001, permissionBit: pgdb.Delete},
 	}
 
 	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
