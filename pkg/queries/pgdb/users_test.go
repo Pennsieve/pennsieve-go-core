@@ -11,8 +11,9 @@ func TestUsers(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Get User by Id":         testGetUserByID,
-		"Get User by Cognito Id": testGetUserByCognitoId,
+		"Get User by Id":                     testGetUserByID,
+		"Get User by Cognito Id":             testGetUserByCognitoId,
+		"Get User By ID No Preferred Org Id": testGetUserByIDNullPreferredOrgId,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 0
@@ -33,6 +34,13 @@ func testGetUserByCognitoId(t *testing.T, store *SQLStore, orgId int) {
 	id := int64(1002)
 	cognitoId := "22222222-2222-2222-2222-222222222222"
 	user, err := store.GetByCognitoId(context.TODO(), cognitoId)
+	assert.NoError(t, err)
+	assert.Equal(t, user.Id, id)
+}
+
+func testGetUserByIDNullPreferredOrgId(t *testing.T, store *SQLStore, orgId int) {
+	id := int64(2001)
+	user, err := store.GetUserById(context.TODO(), id)
 	assert.NoError(t, err)
 	assert.Equal(t, user.Id, id)
 }

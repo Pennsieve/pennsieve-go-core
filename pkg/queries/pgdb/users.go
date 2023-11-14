@@ -11,7 +11,7 @@ import (
 //This function also returns the preferred org and whether the user is a super-admin.
 func (q *Queries) GetByCognitoId(ctx context.Context, id string) (*pgdb.User, error) {
 
-	queryStr := "SELECT id, node_id, email, first_name, last_name, is_super_admin, preferred_org_id " +
+	queryStr := "SELECT id, node_id, email, first_name, last_name, is_super_admin, COALESCE(preferred_org_id, -1) as preferred_org_id " +
 		"FROM pennsieve.users WHERE cognito_id=$1;"
 
 	var user pgdb.User
@@ -40,7 +40,7 @@ func (q *Queries) GetByCognitoId(ctx context.Context, id string) (*pgdb.User, er
 // This function also returns the preferred org and whether the user is a super-admin.
 func (q *Queries) GetUserById(ctx context.Context, id int64) (*pgdb.User, error) {
 
-	queryStr := "SELECT id, node_id, email, first_name, last_name, is_super_admin, preferred_org_id " +
+	queryStr := "SELECT id, node_id, email, first_name, last_name, is_super_admin, COALESCE(preferred_org_id, -1) as preferred_org_id " +
 		"FROM pennsieve.users WHERE id=$1;"
 
 	var user pgdb.User
