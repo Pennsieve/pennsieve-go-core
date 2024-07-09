@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/datasetType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/state"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/nodeId"
@@ -38,6 +39,7 @@ type CreateDatasetParams struct {
 	License                      string
 	Tags                         []string
 	DataUseAgreement             *pgdb.DataUseAgreement
+	Type                         datasetType.DatasetType
 }
 
 func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pgdb.Dataset, error) {
@@ -61,9 +63,10 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 		}
 	}
 
-	statement := fmt.Sprintf("INSERT INTO datasets (name, node_id, state, description, automatically_process_packages," +
-		" status_id, license, tags, data_use_agreement_id)" +
-		" VALUES($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9);")
+	statement := fmt.Sprintf("INSERT INTO datasets " +
+		"(name, node_id, state, description, automatically_process_packages," +
+		" status_id, license, tags, data_use_agreement_id, type)" +
+		" VALUES($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9, $10);")
 
 	_, err = q.db.ExecContext(ctx, statement,
 		p.Name,
@@ -74,7 +77,8 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 		p.Status.Id,
 		p.License,
 		fmt.Sprintf("{%s}", strings.Join(p.Tags, ",")),
-		p.DataUseAgreement.Id)
+		p.DataUseAgreement.Id,
+		p.Type.String())
 
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
