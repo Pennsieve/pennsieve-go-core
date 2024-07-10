@@ -86,6 +86,7 @@ func TestDatasets(t *testing.T) {
 		"Add Manager to Dataset":       testAddManagerToDataset,
 		"Unspecified License is Null":  testUnspecifiedLicenseIsNull,
 		"Empty String License Is Null": testEmptyStringLicenseIsNull,
+		"Create Dataset Release":       testCreateDatasetRelease,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -261,4 +262,33 @@ func testEmptyStringLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 	assert.Equal(t, createDatasetParams.Name, ds.Name)
 	assert.False(t, ds.License.Valid)
+}
+
+func testCreateDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
+	var err error
+	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
+	}
+	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
+	}
+	createDatasetParams := CreateDatasetParams{
+		Name:                         "Test Dataset - EmptyStringLicenseIsNull",
+		Description:                  "Test Dataset - EmptyStringLicenseIsNull",
+		Status:                       defaultDatasetStatus,
+		AutomaticallyProcessPackages: false,
+		License:                      "",
+		Tags:                         nil,
+		DataUseAgreement:             defaultDataUseAgreement,
+	}
+	origin := "GitHub"
+	url := "https://github.com/Pennsieve/github-service"
+	dsr, err := store.CreateDatasetTypeRelease(context.TODO(), createDatasetParams, origin, url)
+	assert.NoError(t, err)
+	assert.Equal(t, createDatasetParams.Name, dsr.Dataset.Name)
+	assert.Equal(t, origin, dsr.Release.Origin)
+	assert.Equal(t, url, dsr.Release.Url)
+	assert.Equal(t, dsr.Dataset.Id, dsr.Release.DatasetId)
 }

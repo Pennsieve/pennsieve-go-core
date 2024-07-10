@@ -23,6 +23,14 @@ func (e DatasetNotFoundError) Error() string {
 	return fmt.Sprintf("dataset was not found (error: %v)", e.ErrorMessage)
 }
 
+type DatasetReleaseNotFoundError struct {
+	ErrorMessage string
+}
+
+func (e DatasetReleaseNotFoundError) Error() string {
+	return fmt.Sprintf("dataset release was not found (error: %v)", e.ErrorMessage)
+}
+
 type DatasetUserNotFoundError struct {
 	ErrorMessage string
 }
@@ -40,6 +48,15 @@ type CreateDatasetParams struct {
 	Tags                         []string
 	DataUseAgreement             *pgdb.DataUseAgreement
 	Type                         datasetType.DatasetType
+}
+
+type CreateDatasetReleaseParams struct {
+	Origin     string
+	Url        string
+	Label      string
+	Marker     string
+	Properties pgdb.Properties
+	Tags       pgdb.Tags
 }
 
 func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pgdb.Dataset, error) {
@@ -90,6 +107,66 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 	}
 
 	return dataset, nil
+}
+
+func (q *Queries) GetDatasetRelease(ctx context.Context, datasetId int64, origin string, url string) (*pgdb.DatasetRelease, error) {
+	query := "SELECT id, dataset_id, origin, url, label, marker, release_date, created_at, updated_at " +
+		"FROM dataset_release WHERE dataset_id = $1 AND origin = $2 AND url = $3"
+
+	var datasetRelease pgdb.DatasetRelease
+	row := q.db.QueryRowContext(ctx, query, datasetId, origin, url)
+	err := row.Scan(
+		&datasetRelease.Id,
+		&datasetRelease.DatasetId,
+		&datasetRelease.Origin,
+		&datasetRelease.Url,
+		&datasetRelease.Label,
+		&datasetRelease.Marker,
+		&datasetRelease.ReleaseDate,
+		&datasetRelease.CreatedAt,
+		&datasetRelease.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, &DatasetReleaseNotFoundError{fmt.Sprintf("dataset release not found for datasetId %d origin %s url %s", datasetId, origin, url)}
+		} else {
+			return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
+		}
+	}
+
+	return &datasetRelease, nil
+}
+
+func (q *Queries) CreateDatasetTypeRelease(ctx context.Context, p CreateDatasetParams, origin string, url string) (*pgdb.DatasetReleaseDTO, error) {
+	// first create the dataset
+	dataset, err := q.CreateDataset(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	// then create the dataset_release
+	statement := fmt.Sprintf("INSERT INTO dataset_release " +
+		"(dataset_id, origin, url)" +
+		" VALUES($1, $2, $3);")
+
+	_, err = q.db.ExecContext(ctx, statement, dataset.Id, origin, url)
+
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
+	}
+
+	// retrieve the dataset_release
+	release, err := q.GetDatasetRelease(ctx, dataset.Id, origin, url)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &pgdb.DatasetReleaseDTO{
+		Dataset: *dataset,
+		Release: *release,
+	}, nil
 }
 
 // GetDatasetByName will query workspace datasets by name and return one if found.
