@@ -10,6 +10,7 @@ import (
 )
 
 type Tags []string
+type Properties map[string]interface{}
 
 func (t Tags) Value() (driver.Value, error) {
 	return (*pq.StringArray)(&t).Value()
@@ -88,4 +89,23 @@ type DatasetContributor struct {
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	ContributorOrder int64     `json:"contributor_order"`
+}
+
+type DatasetRelease struct {
+	Id          int64          `json:"id"`
+	DatasetId   int64          `json:"dataset_id"`
+	Origin      string         `json:"origin"`
+	Url         string         `json:"url"`
+	Label       sql.NullString `json:"label"`
+	Marker      sql.NullString `json:"marker"`
+	Properties  Properties     `json:"properties"`
+	Tags        Tags           `json:"tags"`
+	ReleaseDate sql.NullTime   `json:"release_date"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
+type DatasetReleaseDTO struct {
+	Dataset Dataset        `json:"dataset"`
+	Release DatasetRelease `json:"release"`
 }
