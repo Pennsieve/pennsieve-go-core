@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"sort"
 	"strings"
+	"time"
 )
 
 type DatasetNotFoundError struct {
@@ -353,6 +354,37 @@ func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	}
 
 	return q.GetDatasetUser(ctx, dataset, user)
+}
+
+func (q *Queries) SetUpdatedAt(ctx context.Context, datasetId int64, t time.Time) error {
+	queryStr := fmt.Sprintf("UPDATE datasets SET updated_at=$1 WHERE id=$2;")
+	result, err := q.db.ExecContext(ctx, queryStr, t, datasetId)
+
+	msg := ""
+	if err != nil {
+		msg = fmt.Sprintf("Error updating the updated_at column: %v", err)
+		log.Println(msg)
+		return err
+	}
+
+	affectedRows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affectedRows != 1 {
+		if affectedRows == 0 {
+			nofFoundError := &pgdb.ErrFileNotFound{}
+			log.Println(nofFoundError.Error())
+			return nofFoundError
+		}
+
+		multipleRowError := &pgdb.ErrMultipleRowsAffected{}
+		log.Println(multipleRowError.Error())
+		return multipleRowError
+	}
+
+	return nil
+
 }
 
 func datasetRoleToPermission(r role.Role) pgdb.DbPermission {
