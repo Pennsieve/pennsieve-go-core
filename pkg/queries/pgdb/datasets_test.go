@@ -9,6 +9,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 //goland:noinspection SqlResolve
@@ -86,6 +87,7 @@ func TestDatasets(t *testing.T) {
 		"Add Manager to Dataset":       testAddManagerToDataset,
 		"Unspecified License is Null":  testUnspecifiedLicenseIsNull,
 		"Empty String License Is Null": testEmptyStringLicenseIsNull,
+		"Update updatedAt timestamp":   testUpdatedAtChange,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -261,4 +263,18 @@ func testEmptyStringLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
 	assert.NoError(t, err)
 	assert.Equal(t, createDatasetParams.Name, ds.Name)
 	assert.False(t, ds.License.Valid)
+}
+
+func testUpdatedAtChange(t *testing.T, store *SQLStore, orgId int) {
+
+	name := "Test Dataset - GetDatasetByName"
+	ds, _ := store.GetDatasetByName(context.TODO(), name)
+
+	testTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	store.SetUpdatedAt(context.Background(), ds, testTime)
+
+	ds, _ = store.GetDatasetByName(context.TODO(), name)
+
+	assert.Equal(t, testTime.Unix(), ds.UpdatedAt.Unix())
+
 }
