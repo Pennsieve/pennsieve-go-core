@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/datasetType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/test"
@@ -79,15 +80,17 @@ func TestDatasets(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Get Dataset by Name":          testGetDatasetByName,
-		"Create Dataset":               testCreateDataset,
-		"Add Owner to Dataset":         testAddOwnerToDataset,
-		"Add Viewer to Dataset":        testAddViewerToDataset,
-		"Add Editor to Dataset":        testAddEditorToDataset,
-		"Add Manager to Dataset":       testAddManagerToDataset,
-		"Unspecified License is Null":  testUnspecifiedLicenseIsNull,
-		"Empty String License Is Null": testEmptyStringLicenseIsNull,
-		"Update updatedAt timestamp":   testUpdatedAtChange,
+		"Get Dataset by Name":              testGetDatasetByName,
+		"Create Dataset":                   testCreateDataset,
+		"Default Dataset type is research": testDefaultDatasetType,
+		"Add Owner to Dataset":             testAddOwnerToDataset,
+		"Add Viewer to Dataset":            testAddViewerToDataset,
+		"Add Editor to Dataset":            testAddEditorToDataset,
+		"Add Manager to Dataset":           testAddManagerToDataset,
+		"Unspecified License is Null":      testUnspecifiedLicenseIsNull,
+		"Empty String License Is Null":     testEmptyStringLicenseIsNull,
+		"Create Dataset Release":           testCreateDatasetRelease,
+		"Update updatedAt timestamp":       testUpdatedAtChange,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -276,5 +279,60 @@ func testUpdatedAtChange(t *testing.T, store *SQLStore, orgId int) {
 	ds, _ = store.GetDatasetByName(context.TODO(), name)
 
 	assert.Equal(t, testTime.Unix(), ds.UpdatedAt.Unix())
+}
 
+func testDefaultDatasetType(t *testing.T, store *SQLStore, orgId int) {
+	var err error
+	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testDefaultDatasetType(): failed to get default dataset status")
+	}
+	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testDefaultDatasetType(): failed to get default data use agreement")
+	}
+	createDatasetParams := CreateDatasetParams{
+		Name:                         "Test Default Dataset type is research",
+		Description:                  "Test Default Dataset type is research - description",
+		Status:                       defaultDatasetStatus,
+		AutomaticallyProcessPackages: false,
+		License:                      "Community Data License Agreement – Sharing",
+		Tags:                         nil,
+		DataUseAgreement:             defaultDataUseAgreement,
+	}
+	ds, err := store.CreateDataset(context.TODO(), createDatasetParams)
+	assert.NoError(t, err)
+	assert.Equal(t, createDatasetParams.Name, ds.Name)
+	assert.Equal(t, datasetType.Research.String(), ds.Type)
+}
+
+func testCreateDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
+	var err error
+	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
+	}
+	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
+	if err != nil {
+		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
+	}
+	createDatasetParams := CreateDatasetParams{
+		Name:                         "Test Dataset Release",
+		Description:                  "Test Dataset Release - description",
+		Status:                       defaultDatasetStatus,
+		AutomaticallyProcessPackages: false,
+		License:                      "Apache 2.0",
+		Tags:                         nil,
+		DataUseAgreement:             defaultDataUseAgreement,
+		Type:                         datasetType.Release,
+	}
+	origin := "GitHub"
+	url := "https://github.com/Pennsieve/github-service"
+	dsr, err := store.CreateDatasetTypeRelease(context.TODO(), createDatasetParams, origin, url)
+	assert.NoError(t, err)
+	assert.Equal(t, createDatasetParams.Name, dsr.Dataset.Name)
+	assert.Equal(t, datasetType.Release.String(), dsr.Dataset.Type)
+	assert.Equal(t, origin, dsr.Release.Origin)
+	assert.Equal(t, url, dsr.Release.Url)
+	assert.Equal(t, dsr.Dataset.Id, dsr.Release.DatasetId)
 }
