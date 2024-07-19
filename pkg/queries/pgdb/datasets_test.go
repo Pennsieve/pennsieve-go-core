@@ -274,7 +274,7 @@ func testUpdatedAtChange(t *testing.T, store *SQLStore, orgId int) {
 	ds, _ := store.GetDatasetByName(context.TODO(), name)
 
 	testTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-	store.SetUpdatedAt(context.Background(), ds, testTime)
+	store.SetUpdatedAt(context.Background(), ds.Id, testTime)
 
 	ds, _ = store.GetDatasetByName(context.TODO(), name)
 

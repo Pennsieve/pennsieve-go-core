@@ -356,9 +356,9 @@ func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	return q.GetDatasetUser(ctx, dataset, user)
 }
 
-func (q *Queries) SetUpdatedAt(ctx context.Context, dataset *pgdb.Dataset, t time.Time) error {
+func (q *Queries) SetUpdatedAt(ctx context.Context, datasetId int64, t time.Time) error {
 	queryStr := fmt.Sprintf("UPDATE datasets SET updated_at=$1 WHERE id=$2;")
-	result, err := q.db.ExecContext(ctx, queryStr, t, dataset.Id)
+	result, err := q.db.ExecContext(ctx, queryStr, t, datasetId)
 
 	msg := ""
 	if err != nil {
