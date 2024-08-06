@@ -1,6 +1,7 @@
 package authorizer
 
 import (
+	"github.com/pennsieve/pennsieve-go-core/pkg/authorizer/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
@@ -9,6 +10,8 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/teamUser"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
 	log "github.com/sirupsen/logrus"
+	"strconv"
+	"time"
 )
 
 // Claims is an object containing claims and user info
@@ -112,4 +115,14 @@ func IsPublisher(claims *Claims) bool {
 	}
 
 	return isPublisher
+}
+
+func GenerateServiceClaim(duration time.Duration) models.ServiceClaim {
+	issuedTime := time.Now().Unix()
+	expiresAt := issuedTime + duration.Milliseconds()/1000
+	return models.ServiceClaim{
+		Type:      "service_claim",
+		IssuedAt:  strconv.FormatInt(issuedTime, 10),
+		ExpiresAt: strconv.FormatInt(expiresAt, 10),
+	}
 }
