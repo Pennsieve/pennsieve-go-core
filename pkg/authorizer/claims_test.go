@@ -1,13 +1,14 @@
 package authorizer
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/stretchr/testify/assert"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -119,49 +120,55 @@ func testNoTeamClaims(t *testing.T) {
 	assert.False(t, IsPublisher(claims))
 }
 
+var duration time.Duration = 5 * time.Minute
+
+func orgClaim() organization.Claim {
+	return organization.Claim{
+		Role:            pgdb.Owner,
+		IntId:           367,
+		NodeId:          "N:organization:06c8002d-477a-45e9-ae0d-06f4b218628f",
+		EnabledFeatures: nil,
+	}
+}
+
+func datasetClaim() dataset.Claim {
+	return dataset.Claim{
+		Role:   role.Owner,
+		NodeId: "N:dataset:ca645a17-fb55-4afd-aff8-7e0078b4523f",
+		IntId:  86,
+	}
+}
+
 func testGenerateServiceClaim(t *testing.T) {
-	claim := GenerateServiceClaim(5 * time.Minute)
+	claim := GenerateServiceClaim(duration)
 	assert.NotNil(t, claim)
+	// verify that IssuedAt and ExpiresAt are non-zero
+	issuedAt, _ := strconv.Atoi(claim.IssuedAt)
+	assert.Greater(t, issuedAt, 0)
+	expiresAt, _ := strconv.Atoi(claim.ExpiresAt)
+	assert.Greater(t, expiresAt, 0)
+	// verify that ExpiresAt is "later than" IssuedAt
+	assert.Greater(t, expiresAt, issuedAt)
+	// verify that the validity period is what was asked for
+	period, err := time.ParseDuration(fmt.Sprintf("%ds", expiresAt-issuedAt))
+	assert.NoError(t, err)
+	assert.Equal(t, duration, period)
 }
 
 func testGenerateServiceClaimWithRoles(t *testing.T) {
-	orgClaim := organization.Claim{
-		Role:            pgdb.Owner,
-		IntId:           367,
-		NodeId:          "N:organization:06c8002d-477a-45e9-ae0d-06f4b218628f",
-		EnabledFeatures: nil,
-	}
-	datasetClaim := dataset.Claim{
-		Role:   role.Owner,
-		NodeId: "N:dataset:ca645a17-fb55-4afd-aff8-7e0078b4523f",
-		IntId:  86,
-	}
-	claim := GenerateServiceClaim(5 * time.Minute).WithOrganizationClaim(orgClaim).WithDatasetClaim(datasetClaim)
+	claim := GenerateServiceClaim(duration).WithOrganizationClaim(orgClaim()).WithDatasetClaim(datasetClaim())
 	assert.NotNil(t, claim)
-	data, err := json.Marshal(claim)
-	assert.NoError(t, err)
-	dataString := string(data)
-	fmt.Println(dataString)
+	// verify that the provided claims were included
+	assert.Equal(t, 2, len(claim.Roles))
 }
 
 func testServiceClaimAsToken(t *testing.T) {
-	orgClaim := organization.Claim{
-		Role:            pgdb.Owner,
-		IntId:           367,
-		NodeId:          "N:organization:06c8002d-477a-45e9-ae0d-06f4b218628f",
-		EnabledFeatures: nil,
-	}
-	datasetClaim := dataset.Claim{
-		Role:   role.Owner,
-		NodeId: "N:dataset:ca645a17-fb55-4afd-aff8-7e0078b4523f",
-		IntId:  86,
-	}
-	claim := GenerateServiceClaim(5 * time.Minute).WithOrganizationClaim(orgClaim).WithDatasetClaim(datasetClaim)
-	token, err := claim.AsToken("secret")
+	token, err := GenerateServiceClaim(5 * time.Minute).WithOrganizationClaim(orgClaim()).WithDatasetClaim(datasetClaim()).AsToken("secret")
 	assert.NoError(t, err)
 	assert.NotNil(t, token)
-	data, err := json.Marshal(token)
-	assert.NoError(t, err)
-	dataString := string(data)
-	fmt.Println(dataString)
+	// verify that the encoded token value is present
+	assert.Greater(t, len(token.Value), 0)
+	// verify that the encoded JWT has the requisite 3 parts
+	jwtParts := strings.Split(token.Value, ".")
+	assert.Len(t, jwtParts, 3)
 }
