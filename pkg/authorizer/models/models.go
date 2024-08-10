@@ -31,7 +31,7 @@ func (c ServiceClaim) WithOrganizationClaim(claim organization.Claim) ServiceCla
 		Type:   "organization_role",
 		Id:     strconv.FormatInt(claim.IntId, 10),
 		NodeId: claim.NodeId,
-		Role:   claim.Role.AsOrganizationRole(),
+		Role:   claim.Role.AsRoleString(),
 	})
 	return c
 }

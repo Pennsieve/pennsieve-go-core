@@ -1,6 +1,7 @@
 package pgdb
 
 import (
+	"strings"
 	"time"
 )
 
@@ -37,7 +38,24 @@ func (s DbPermission) String() string {
 	return "NoPermission"
 }
 
-func (s DbPermission) AsOrganizationRole() string {
+func FromRole(role string) DbPermission {
+	switch strings.ToLower(role) {
+	case "guest":
+		return Guest
+	case "viewer":
+		return Read
+	case "editor":
+		return Delete
+	case "manager":
+		return Administer
+	case "owner":
+		return Owner
+	default:
+		return NoPermission
+	}
+}
+
+func (s DbPermission) AsRoleString() string {
 	switch s {
 	case NoPermission:
 		return "none"
@@ -45,16 +63,16 @@ func (s DbPermission) AsOrganizationRole() string {
 		return "guest"
 	case Read:
 
-		return "collaborator"
+		return "viewer"
 	case Write:
 
-		return "collaborator"
+		return "editor"
 	case Delete:
 
-		return "collaborator"
+		return "editor"
 	case Administer:
 
-		return "administrator"
+		return "manager"
 	case Owner:
 
 		return "owner"
