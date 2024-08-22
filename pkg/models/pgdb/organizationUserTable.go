@@ -1,6 +1,7 @@
 package pgdb
 
 import (
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,49 @@ func (s DbPermission) String() string {
 	}
 
 	return "NoPermission"
+}
+
+func FromRole(role string) DbPermission {
+	switch strings.ToLower(role) {
+	case "guest":
+		return Guest
+	case "viewer":
+		return Read
+	case "editor":
+		return Delete
+	case "manager":
+		return Administer
+	case "owner":
+		return Owner
+	default:
+		return NoPermission
+	}
+}
+
+func (s DbPermission) AsRoleString() string {
+	switch s {
+	case NoPermission:
+		return "none"
+	case Guest:
+		return "guest"
+	case Read:
+
+		return "viewer"
+	case Write:
+
+		return "editor"
+	case Delete:
+
+		return "editor"
+	case Administer:
+
+		return "manager"
+	case Owner:
+
+		return "owner"
+	default:
+		return "none"
+	}
 }
 
 type OrganizationUser struct {
