@@ -139,37 +139,6 @@ func (q *Queries) GetDatasetRelease(ctx context.Context, datasetId int64, origin
 	return &datasetRelease, nil
 }
 
-func (q *Queries) CreateDatasetTypeRelease(ctx context.Context, p CreateDatasetParams, origin string, url string) (*pgdb.DatasetReleaseDTO, error) {
-	// first create the dataset
-	dataset, err := q.CreateDataset(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-
-	// then create the dataset_release
-	statement := fmt.Sprintf("INSERT INTO dataset_release " +
-		"(dataset_id, origin, url)" +
-		" VALUES($1, $2, $3);")
-
-	_, err = q.db.ExecContext(ctx, statement, dataset.Id, origin, url)
-
-	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
-	}
-
-	// retrieve the dataset_release
-	release, err := q.GetDatasetRelease(ctx, dataset.Id, origin, url)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &pgdb.DatasetReleaseDTO{
-		Dataset: *dataset,
-		Release: *release,
-	}, nil
-}
-
 // GetDatasetById will query workspace datasets by name and return one if found.
 func (q *Queries) GetDatasetById(ctx context.Context, id int64) (*pgdb.Dataset, error) {
 	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
