@@ -170,6 +170,16 @@ func (q *Queries) CreateDatasetTypeRelease(ctx context.Context, p CreateDatasetP
 	}, nil
 }
 
+// GetDatasetById will query workspace datasets by name and return one if found.
+func (q *Queries) GetDatasetById(ctx context.Context, id int64) (*pgdb.Dataset, error) {
+	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
+		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
+		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
+		" FROM datasets WHERE id=%d;", id)
+	row := q.db.QueryRowContext(ctx, query)
+	return scanDataset(row)
+}
+
 // GetDatasetByName will query workspace datasets by name and return one if found.
 func (q *Queries) GetDatasetByName(ctx context.Context, name string) (*pgdb.Dataset, error) {
 	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+

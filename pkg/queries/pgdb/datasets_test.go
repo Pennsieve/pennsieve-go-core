@@ -70,6 +70,7 @@ func TestDatasets(t *testing.T) {
 	db := testDB[orgId]
 	store := NewSQLStore(db)
 
+	addTestDataset(db, "Test Dataset - GetDatasetById")
 	addTestDataset(db, "Test Dataset - GetDatasetByName")
 	addTestDataset(db, "Test Dataset - AddOwnerToDataset")
 	addTestDataset(db, "Test Dataset - AddViewerToDataset")
@@ -80,6 +81,7 @@ func TestDatasets(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
+		"Get Dataset by Id":                testGetDatasetById,
 		"Get Dataset by Name":              testGetDatasetByName,
 		"Create Dataset":                   testCreateDataset,
 		"Default Dataset type is research": testDefaultDatasetType,
@@ -98,6 +100,15 @@ func TestDatasets(t *testing.T) {
 			fn(t, store, orgId)
 		})
 	}
+}
+
+func testGetDatasetById(t *testing.T, store *SQLStore, orgId int) {
+	name := "Test Dataset - GetDatasetById"
+	id := addTestDataset(store.db, name)
+	ds, err := store.GetDatasetById(context.TODO(), id)
+	assert.NoError(t, err)
+	assert.Equal(t, name, ds.Name)
+	assert.Equal(t, id, ds.Id)
 }
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
