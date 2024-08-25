@@ -141,22 +141,17 @@ func (q *Queries) GetDatasetRelease(ctx context.Context, datasetId int64, origin
 
 // GetDatasetById will query workspace datasets by name and return one if found.
 func (q *Queries) GetDatasetById(ctx context.Context, id int64) (*pgdb.Dataset, error) {
-	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
-		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
-		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
-		" FROM datasets WHERE id=%d;", id)
-	row := q.db.QueryRowContext(ctx, query)
-	return scanDataset(row)
+	return q.getDataset(ctx, fmt.Sprintf("id=%d", id))
+}
+
+// GetDatasetByNodeId will query workspace datasets by name and return one if found.
+func (q *Queries) GetDatasetByNodeId(ctx context.Context, nodeId string) (*pgdb.Dataset, error) {
+	return q.getDataset(ctx, fmt.Sprintf("node_id='%s'", nodeId))
 }
 
 // GetDatasetByName will query workspace datasets by name and return one if found.
 func (q *Queries) GetDatasetByName(ctx context.Context, name string) (*pgdb.Dataset, error) {
-	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
-		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
-		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
-		" FROM datasets WHERE name='%s';", name)
-	row := q.db.QueryRowContext(ctx, query)
-	return scanDataset(row)
+	return q.getDataset(ctx, fmt.Sprintf("name='%s'", name))
 }
 
 // GetDatasets returns all rows in the Upload Record Table
@@ -381,6 +376,15 @@ func datasetRoleToPermission(r role.Role) pgdb.DbPermission {
 	default:
 		return pgdb.NoPermission
 	}
+}
+
+func (q *Queries) getDataset(ctx context.Context, predicate string) (*pgdb.Dataset, error) {
+	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
+		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
+		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
+		" FROM datasets WHERE %s;", predicate)
+	row := q.db.QueryRowContext(ctx, query)
+	return scanDataset(row)
 }
 
 func scanDataset(row *sql.Row) (*pgdb.Dataset, error) {
