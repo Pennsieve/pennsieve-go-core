@@ -110,35 +110,6 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 	return dataset, nil
 }
 
-func (q *Queries) GetDatasetRelease(ctx context.Context, datasetId int64, label string, marker string) (*pgdb.DatasetRelease, error) {
-	query := "SELECT id, dataset_id, origin, url, label, marker, release_date, created_at, updated_at " +
-		"FROM dataset_release WHERE dataset_id = $1 AND label = $2 AND marker = $3"
-
-	var datasetRelease pgdb.DatasetRelease
-	row := q.db.QueryRowContext(ctx, query, datasetId, label, marker)
-	err := row.Scan(
-		&datasetRelease.Id,
-		&datasetRelease.DatasetId,
-		&datasetRelease.Origin,
-		&datasetRelease.Url,
-		&datasetRelease.Label,
-		&datasetRelease.Marker,
-		&datasetRelease.ReleaseDate,
-		&datasetRelease.CreatedAt,
-		&datasetRelease.UpdatedAt,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, &DatasetReleaseNotFoundError{fmt.Sprintf("dataset release not found for datasetId %d label %s marker %s", datasetId, label, marker)}
-		} else {
-			return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
-		}
-	}
-
-	return &datasetRelease, nil
-}
-
 // GetDatasetById will query workspace datasets by name and return one if found.
 func (q *Queries) GetDatasetById(ctx context.Context, id int64) (*pgdb.Dataset, error) {
 	return q.getDataset(ctx, fmt.Sprintf("id=%d", id))
