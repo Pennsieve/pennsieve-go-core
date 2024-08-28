@@ -23,6 +23,8 @@ func TestDatasetRelease(t *testing.T) {
 		"Get Dataset Release":       testGetDatasetRelease,
 		"Get Dataset Release by Id": testGetDatasetReleaseById,
 		"Update Dataset Release":    testUpdateDatasetRelease,
+		"Update Release Status":     testUpdateReleaseStatus,
+		"Update Publishing Status":  testUpdatePublishingStatus,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -76,14 +78,16 @@ func testAddDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
 	datasetId := addDatasetTypeRelease(store, orgId, "Test Dataset Release - 01")
 
 	input := pgdb.DatasetRelease{
-		DatasetId:   datasetId,
-		Origin:      "GitHub",
-		Url:         "https://github.com/pennsieve/pennsieve",
-		Label:       sql.NullString{},
-		Marker:      sql.NullString{},
-		Properties:  nil,
-		Tags:        nil,
-		ReleaseDate: sql.NullTime{},
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{},
+		Marker:           sql.NullString{},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{},
+		ReleaseStatus:    "created",
+		PublishingStatus: "initial",
 	}
 
 	output, err := store.AddDatasetRelease(context.TODO(), input)
@@ -99,14 +103,16 @@ func testGetDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
 	marker := "0123456"
 
 	input := pgdb.DatasetRelease{
-		DatasetId:   datasetId,
-		Origin:      "GitHub",
-		Url:         "https://github.com/pennsieve/pennsieve",
-		Label:       sql.NullString{Valid: true, String: label},
-		Marker:      sql.NullString{Valid: true, String: marker},
-		Properties:  nil,
-		Tags:        nil,
-		ReleaseDate: sql.NullTime{},
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{Valid: true, String: label},
+		Marker:           sql.NullString{Valid: true, String: marker},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{},
+		ReleaseStatus:    "created",
+		PublishingStatus: "initial",
 	}
 
 	output, err := store.AddDatasetRelease(context.TODO(), input)
@@ -129,14 +135,16 @@ func testGetDatasetReleaseById(t *testing.T, store *SQLStore, orgId int) {
 	marker := "1234567"
 
 	input := pgdb.DatasetRelease{
-		DatasetId:   datasetId,
-		Origin:      "GitHub",
-		Url:         "https://github.com/pennsieve/pennsieve",
-		Label:       sql.NullString{Valid: true, String: label},
-		Marker:      sql.NullString{Valid: true, String: marker},
-		Properties:  nil,
-		Tags:        nil,
-		ReleaseDate: sql.NullTime{},
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{Valid: true, String: label},
+		Marker:           sql.NullString{Valid: true, String: marker},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{},
+		ReleaseStatus:    "created",
+		PublishingStatus: "initial",
 	}
 
 	output, err := store.AddDatasetRelease(context.TODO(), input)
@@ -157,14 +165,16 @@ func testUpdateDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
 	datasetId := addDatasetTypeRelease(store, orgId, "Test Dataset Release - 04")
 
 	input := pgdb.DatasetRelease{
-		DatasetId:   datasetId,
-		Origin:      "GitHub",
-		Url:         "https://github.com/pennsieve/pennsieve",
-		Label:       sql.NullString{},
-		Marker:      sql.NullString{},
-		Properties:  nil,
-		Tags:        nil,
-		ReleaseDate: sql.NullTime{},
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{},
+		Marker:           sql.NullString{},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{},
+		ReleaseStatus:    "created",
+		PublishingStatus: "initial",
 	}
 
 	output, err := store.AddDatasetRelease(context.TODO(), input)
@@ -176,15 +186,17 @@ func testUpdateDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
 	releaseDate := time.Date(2024, time.August, 27, 18, 32, 25, 0, time.UTC)
 
 	update := pgdb.DatasetRelease{
-		Id:          output.Id,
-		DatasetId:   datasetId,
-		Origin:      "GitHub",
-		Url:         "https://github.com/pennsieve/pennsieve",
-		Label:       sql.NullString{Valid: true, String: label},
-		Marker:      sql.NullString{Valid: true, String: marker},
-		Properties:  nil,
-		Tags:        nil,
-		ReleaseDate: sql.NullTime{Valid: true, Time: releaseDate},
+		Id:               output.Id,
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{Valid: true, String: label},
+		Marker:           sql.NullString{Valid: true, String: marker},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{Valid: true, Time: releaseDate},
+		ReleaseStatus:    "created",
+		PublishingStatus: "initial",
 	}
 
 	updated, err := store.UpdateDatasetRelease(context.TODO(), update)
@@ -194,5 +206,110 @@ func testUpdateDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, label, updated.Label.String)
 	assert.Equal(t, marker, updated.Marker.String)
 	assert.True(t, releaseDate.Equal(updated.ReleaseDate.Time))
+	deleteDataset(store, datasetId)
+}
+
+func testUpdateReleaseStatus(t *testing.T, store *SQLStore, orgId int) {
+	datasetId := addDatasetTypeRelease(store, orgId, "Test Dataset Release - 05")
+
+	initialReleaseStatus := "prerelease"
+	input := pgdb.DatasetRelease{
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{},
+		Marker:           sql.NullString{},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{},
+		ReleaseStatus:    initialReleaseStatus,
+		PublishingStatus: "initial",
+	}
+
+	output, err := store.AddDatasetRelease(context.TODO(), input)
+	assert.NoError(t, err)
+	assert.Equal(t, datasetId, output.DatasetId)
+
+	label := "v4.0.0"
+	marker := "1010101"
+	releaseDate := time.Date(2024, time.August, 27, 18, 32, 25, 0, time.UTC)
+
+	updatedReleaseStatus := "published"
+	update := pgdb.DatasetRelease{
+		Id:               output.Id,
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{Valid: true, String: label},
+		Marker:           sql.NullString{Valid: true, String: marker},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{Valid: true, Time: releaseDate},
+		ReleaseStatus:    updatedReleaseStatus,
+		PublishingStatus: "initial",
+	}
+
+	updated, err := store.UpdateDatasetRelease(context.TODO(), update)
+	assert.NoError(t, err)
+	assert.Equal(t, datasetId, updated.DatasetId)
+	assert.Equal(t, output.Id, updated.Id)
+	assert.Equal(t, label, updated.Label.String)
+	assert.Equal(t, marker, updated.Marker.String)
+	assert.True(t, releaseDate.Equal(updated.ReleaseDate.Time))
+	assert.Equal(t, updatedReleaseStatus, updated.ReleaseStatus)
+	deleteDataset(store, datasetId)
+}
+
+func testUpdatePublishingStatus(t *testing.T, store *SQLStore, orgId int) {
+	datasetId := addDatasetTypeRelease(store, orgId, "Test Dataset Release - 06")
+
+	initialReleaseStatus := "created"
+	initialPublishingStatus := "initial"
+	input := pgdb.DatasetRelease{
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{},
+		Marker:           sql.NullString{},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{},
+		ReleaseStatus:    initialReleaseStatus,
+		PublishingStatus: initialPublishingStatus,
+	}
+
+	output, err := store.AddDatasetRelease(context.TODO(), input)
+	assert.NoError(t, err)
+	assert.Equal(t, datasetId, output.DatasetId)
+
+	label := "v4.0.0"
+	marker := "1010101"
+	releaseDate := time.Date(2024, time.August, 27, 18, 32, 25, 0, time.UTC)
+
+	updatedReleaseStatus := "created"
+	updatedPublishingStatus := "succeeded"
+	update := pgdb.DatasetRelease{
+		Id:               output.Id,
+		DatasetId:        datasetId,
+		Origin:           "GitHub",
+		Url:              "https://github.com/pennsieve/pennsieve",
+		Label:            sql.NullString{Valid: true, String: label},
+		Marker:           sql.NullString{Valid: true, String: marker},
+		Properties:       nil,
+		Tags:             nil,
+		ReleaseDate:      sql.NullTime{Valid: true, Time: releaseDate},
+		ReleaseStatus:    updatedReleaseStatus,
+		PublishingStatus: updatedPublishingStatus,
+	}
+
+	updated, err := store.UpdateDatasetRelease(context.TODO(), update)
+	assert.NoError(t, err)
+	assert.Equal(t, datasetId, updated.DatasetId)
+	assert.Equal(t, output.Id, updated.Id)
+	assert.Equal(t, label, updated.Label.String)
+	assert.Equal(t, marker, updated.Marker.String)
+	assert.True(t, releaseDate.Equal(updated.ReleaseDate.Time))
+	assert.Equal(t, updatedReleaseStatus, updated.ReleaseStatus)
+	assert.Equal(t, updatedPublishingStatus, updated.PublishingStatus)
 	deleteDataset(store, datasetId)
 }

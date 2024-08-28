@@ -8,7 +8,9 @@ import (
 )
 
 func (q *Queries) AddDatasetRelease(ctx context.Context, release pgdb.DatasetRelease) (*pgdb.DatasetRelease, error) {
-	statement := "INSERT INTO dataset_release (dataset_id, origin, url, label, marker, release_date) VALUES ($1, $2, $3, $4, $5, $6) returning id;"
+	statement := "INSERT INTO dataset_release " +
+		"(dataset_id, origin, url, label, marker, release_date, release_status, publishing_status) " +
+		"VALUES ($1, $2, $3, $4, $5, $6, $7, $8) returning id;"
 
 	//result, err := q.db.ExecContext(ctx, statement,
 	//	release.DatasetId,
@@ -28,6 +30,8 @@ func (q *Queries) AddDatasetRelease(ctx context.Context, release pgdb.DatasetRel
 		release.Label,
 		release.Marker,
 		release.ReleaseDate,
+		release.ReleaseStatus,
+		release.PublishingStatus,
 	).Scan(&id)
 
 	if err != nil {
@@ -38,11 +42,13 @@ func (q *Queries) AddDatasetRelease(ctx context.Context, release pgdb.DatasetRel
 }
 
 func (q *Queries) UpdateDatasetRelease(ctx context.Context, release pgdb.DatasetRelease) (*pgdb.DatasetRelease, error) {
-	statement := "UPDATE dataset_release SET label=$1, marker=$2, release_date=$3 WHERE id=$4"
+	statement := "UPDATE dataset_release SET label=$1, marker=$2, release_date=$3, release_status=$4, publishing_status=$5 WHERE id=$6;"
 	_, err := q.db.ExecContext(ctx, statement,
 		release.Label,
 		release.Marker,
 		release.ReleaseDate,
+		release.ReleaseStatus,
+		release.PublishingStatus,
 		release.Id,
 	)
 
@@ -64,8 +70,9 @@ func (q *Queries) GetDatasetRelease(ctx context.Context, datasetId int64, label 
 }
 
 func (q *Queries) getDatasetRelease(ctx context.Context, predicate string) (*pgdb.DatasetRelease, error) {
-	query := fmt.Sprintf("SELECT id, dataset_id, origin, url, label, marker, release_date, created_at, updated_at "+
-		"FROM dataset_release WHERE %s;", predicate)
+	query := fmt.Sprintf(
+		"SELECT id, dataset_id, origin, url, label, marker, release_date, release_status, publishing_status, created_at, updated_at "+
+			"FROM dataset_release WHERE %s;", predicate)
 
 	var datasetRelease pgdb.DatasetRelease
 	row := q.db.QueryRowContext(ctx, query)
@@ -77,6 +84,8 @@ func (q *Queries) getDatasetRelease(ctx context.Context, predicate string) (*pgd
 		&datasetRelease.Label,
 		&datasetRelease.Marker,
 		&datasetRelease.ReleaseDate,
+		&datasetRelease.ReleaseStatus,
+		&datasetRelease.PublishingStatus,
 		&datasetRelease.CreatedAt,
 		&datasetRelease.UpdatedAt,
 	)
