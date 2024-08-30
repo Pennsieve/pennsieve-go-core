@@ -70,6 +70,7 @@ func TestDatasets(t *testing.T) {
 	db := testDB[orgId]
 	store := NewSQLStore(db)
 
+	addTestDataset(db, "Test Dataset - GetDatasetById")
 	addTestDataset(db, "Test Dataset - GetDatasetByName")
 	addTestDataset(db, "Test Dataset - AddOwnerToDataset")
 	addTestDataset(db, "Test Dataset - AddViewerToDataset")
@@ -80,16 +81,17 @@ func TestDatasets(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
+		"Get Dataset by Id":                testGetDatasetById,
 		"Get Dataset by Name":              testGetDatasetByName,
 		"Create Dataset":                   testCreateDataset,
 		"Default Dataset type is research": testDefaultDatasetType,
+		"Create Dataset type 'release'":    testCreateDatasetTypeRelease,
 		"Add Owner to Dataset":             testAddOwnerToDataset,
 		"Add Viewer to Dataset":            testAddViewerToDataset,
 		"Add Editor to Dataset":            testAddEditorToDataset,
 		"Add Manager to Dataset":           testAddManagerToDataset,
 		"Unspecified License is Null":      testUnspecifiedLicenseIsNull,
 		"Empty String License Is Null":     testEmptyStringLicenseIsNull,
-		"Create Dataset Release":           testCreateDatasetRelease,
 		"Update updatedAt timestamp":       testUpdatedAtChange,
 	} {
 		t.Run(scenario, func(t *testing.T) {
@@ -98,6 +100,15 @@ func TestDatasets(t *testing.T) {
 			fn(t, store, orgId)
 		})
 	}
+}
+
+func testGetDatasetById(t *testing.T, store *SQLStore, orgId int) {
+	name := "Test Dataset - GetDatasetById"
+	id := addTestDataset(store.db, name)
+	ds, err := store.GetDatasetById(context.TODO(), id)
+	assert.NoError(t, err)
+	assert.Equal(t, name, ds.Name)
+	assert.Equal(t, id, ds.Id)
 }
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
@@ -306,33 +317,28 @@ func testDefaultDatasetType(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, datasetType.Research.String(), ds.Type)
 }
 
-func testCreateDatasetRelease(t *testing.T, store *SQLStore, orgId int) {
+func testCreateDatasetTypeRelease(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
 	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
+		fmt.Errorf("testCreateDatasetTypeRelease(): failed to get default dataset status")
 	}
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
 	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
+		fmt.Errorf("testCreateDatasetTypeRelease(): failed to get default data use agreement")
 	}
 	createDatasetParams := CreateDatasetParams{
-		Name:                         "Test Dataset Release",
-		Description:                  "Test Dataset Release - description",
+		Name:                         "Test Dataset type is release",
+		Description:                  "Test Dataset type is release - description",
 		Status:                       defaultDatasetStatus,
 		AutomaticallyProcessPackages: false,
-		License:                      "Apache 2.0",
+		License:                      "Community Data License Agreement – Sharing",
 		Tags:                         nil,
 		DataUseAgreement:             defaultDataUseAgreement,
 		Type:                         datasetType.Release,
 	}
-	origin := "GitHub"
-	url := "https://github.com/Pennsieve/github-service"
-	dsr, err := store.CreateDatasetTypeRelease(context.TODO(), createDatasetParams, origin, url)
+	ds, err := store.CreateDataset(context.TODO(), createDatasetParams)
 	assert.NoError(t, err)
-	assert.Equal(t, createDatasetParams.Name, dsr.Dataset.Name)
-	assert.Equal(t, datasetType.Release.String(), dsr.Dataset.Type)
-	assert.Equal(t, origin, dsr.Release.Origin)
-	assert.Equal(t, url, dsr.Release.Url)
-	assert.Equal(t, dsr.Dataset.Id, dsr.Release.DatasetId)
+	assert.Equal(t, createDatasetParams.Name, ds.Name)
+	assert.Equal(t, datasetType.Release.String(), ds.Type)
 }

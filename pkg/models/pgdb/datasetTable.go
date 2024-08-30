@@ -92,17 +92,19 @@ type DatasetContributor struct {
 }
 
 type DatasetRelease struct {
-	Id          int64          `json:"id"`
-	DatasetId   int64          `json:"dataset_id"`
-	Origin      string         `json:"origin"`
-	Url         string         `json:"url"`
-	Label       sql.NullString `json:"label"`
-	Marker      sql.NullString `json:"marker"`
-	Properties  Properties     `json:"properties"`
-	Tags        Tags           `json:"tags"`
-	ReleaseDate sql.NullTime   `json:"release_date"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	Id               int64          `json:"id"`
+	DatasetId        int64          `json:"dataset_id"`
+	Origin           string         `json:"origin"`
+	Url              string         `json:"url"`
+	Label            sql.NullString `json:"label"`
+	Marker           sql.NullString `json:"marker"`
+	Properties       Properties     `json:"properties"`
+	Tags             Tags           `json:"tags"`
+	ReleaseDate      sql.NullTime   `json:"release_date"`
+	ReleaseStatus    string         `json:"release_status"`
+	PublishingStatus string         `json:"publishing_status"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
 type DatasetReleaseDTO struct {
