@@ -7,6 +7,14 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 )
 
+type DatasetReleaseNotFoundError struct {
+	ErrorMessage string
+}
+
+func (e DatasetReleaseNotFoundError) Error() string {
+	return fmt.Sprintf("dataset release was not found (error: %v)", e.ErrorMessage)
+}
+
 func (q *Queries) AddDatasetRelease(ctx context.Context, release pgdb.DatasetRelease) (*pgdb.DatasetRelease, error) {
 	statement := "INSERT INTO dataset_release " +
 		"(dataset_id, origin, url, label, marker, release_date, release_status, publishing_status) " +

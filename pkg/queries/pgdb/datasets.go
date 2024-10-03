@@ -24,14 +24,6 @@ func (e DatasetNotFoundError) Error() string {
 	return fmt.Sprintf("dataset was not found (error: %v)", e.ErrorMessage)
 }
 
-type DatasetReleaseNotFoundError struct {
-	ErrorMessage string
-}
-
-func (e DatasetReleaseNotFoundError) Error() string {
-	return fmt.Sprintf("dataset release was not found (error: %v)", e.ErrorMessage)
-}
-
 type DatasetUserNotFoundError struct {
 	ErrorMessage string
 }
