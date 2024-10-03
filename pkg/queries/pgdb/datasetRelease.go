@@ -92,7 +92,7 @@ func (q *Queries) getDatasetRelease(ctx context.Context, predicate string) (*pgd
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, &DatasetReleaseNotFoundError{fmt.Sprintf("dataset release not found where %s", predicate)}
+			return nil, DatasetReleaseNotFoundError{fmt.Sprintf("dataset release not found where %s", predicate)}
 		} else {
 			return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
 		}
