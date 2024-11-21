@@ -184,6 +184,7 @@ func testNilClaimsHaveNoOrgRole(t *testing.T) {
 	var claims *Claims = nil
 	for _, requireRole := range allRoles {
 		assert.False(t, claims.HasOrgRole(requireRole))
+		assert.False(t, HasOrgRole(claims, requireRole))
 	}
 }
 
