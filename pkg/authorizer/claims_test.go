@@ -254,6 +254,9 @@ func testHasOrgRole(t *testing.T) {
 				expected := testParams.expectedToHave[requiredRole]
 				actual := claims.HasOrgRole(requiredRole)
 				assert.Equal(t, expected, actual)
+
+				actual = HasOrgRole(claims, requiredRole)
+				assert.Equal(t, expected, actual)
 			}
 
 		})
