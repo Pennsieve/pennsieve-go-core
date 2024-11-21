@@ -92,7 +92,16 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 	return &parsedClaims
 }
 
-// HasRole returns a boolean indicating whether the user has the correct permissions.
+// HasOrgRole returns true if this claim contains an OrgClaim with permissions sufficient to satisfy the given requiredOrgRole
+func (c *Claims) HasOrgRole(requiredOrgRole role.Role) bool {
+	if c == nil {
+		return false
+	}
+	return c.OrgClaim.HasRole(requiredOrgRole)
+}
+
+// HasRole returns a boolean indicating whether the given Claims contain a dataset.Claim with permissions sufficient to
+// satisfy the given permissions.DatasetPermission
 func HasRole(claims Claims, permission permissions.DatasetPermission) bool {
 
 	//hasOrgRole := claims.orgClaim.Role >= dbTable.Delete
@@ -101,6 +110,11 @@ func HasRole(claims Claims, permission permissions.DatasetPermission) bool {
 
 	return hasValidPermissions
 
+}
+
+// HasOrgRole returns true if the given *Claims contains an OrgClaim with permissions sufficient to satisfy the given requiredOrgRole
+func HasOrgRole(claims *Claims, requiredOrgRole role.Role) bool {
+	return claims.HasOrgRole(requiredOrgRole)
 }
 
 // IsPublisher returns a boolean indicating whether the user is on the Publishing team

@@ -2,11 +2,14 @@ package authorizer
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
 	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,6 +30,8 @@ func TestClaims(t *testing.T) {
 		"Generate a Service Claim":            testGenerateServiceClaim,
 		"Generate a Service Claim with roles": testGenerateServiceClaimWithRoles,
 		"Service Claim as Token":              testServiceClaimAsToken,
+		"Nil Claims have no org role":         testNilClaimsHaveNoOrgRole,
+		"HasOrgRole":                          testHasOrgRole,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			fn(t)
@@ -171,4 +176,86 @@ func testServiceClaimAsToken(t *testing.T) {
 	// verify that the encoded JWT has the requisite 3 parts
 	jwtParts := strings.Split(token.Value, ".")
 	assert.Len(t, jwtParts, 3)
+}
+
+var allRoles = []role.Role{role.None, role.Guest, role.Viewer, role.Editor, role.Manager, role.Owner}
+
+func testNilClaimsHaveNoOrgRole(t *testing.T) {
+	var claims *Claims = nil
+	for _, requireRole := range allRoles {
+		assert.False(t, claims.HasOrgRole(requireRole))
+	}
+}
+
+func userClaim() user.Claim {
+	return user.Claim{
+		Id:           rand.Int63n(50),
+		NodeId:       fmt.Sprintf("N:user:%s", uuid.NewString()),
+		IsSuperAdmin: false,
+	}
+}
+
+func testHasOrgRole(t *testing.T) {
+	for _, testParams := range []struct {
+		name           string
+		role           pgdb.DbPermission
+		expectedToHave map[role.Role]bool
+	}{
+		{
+			"NoPermission",
+			pgdb.NoPermission,
+			map[role.Role]bool{role.None: true},
+		},
+		{
+			"Guest",
+			pgdb.Guest,
+			map[role.Role]bool{role.None: true, role.Guest: true},
+		},
+		{
+			"Read",
+			pgdb.Read,
+			map[role.Role]bool{role.None: true, role.Guest: true, role.Viewer: true},
+		},
+		{
+			"Write",
+			pgdb.Write,
+			map[role.Role]bool{role.None: true, role.Guest: true, role.Viewer: true, role.Editor: true},
+		},
+		{
+			"Delete",
+			pgdb.Delete,
+			map[role.Role]bool{role.None: true, role.Guest: true, role.Viewer: true, role.Editor: true},
+		},
+		{
+			"Administer",
+			pgdb.Administer,
+			map[role.Role]bool{role.None: true, role.Guest: true, role.Viewer: true, role.Editor: true, role.Manager: true},
+		},
+		{
+			"Owner",
+			pgdb.Owner,
+			map[role.Role]bool{role.None: true, role.Guest: true, role.Viewer: true, role.Editor: true, role.Manager: true, role.Owner: true},
+		},
+	} {
+		t.Run(testParams.name, func(t *testing.T) {
+			actualOrgClaim := organization.Claim{
+				Role:            testParams.role,
+				IntId:           rand.Int63n(50),
+				NodeId:          fmt.Sprintf("N:organization:%s", uuid.NewString()),
+				EnabledFeatures: nil,
+			}
+			claims := &Claims{
+				OrgClaim:     actualOrgClaim,
+				DatasetClaim: datasetClaim(),
+				UserClaim:    userClaim(),
+				TeamClaims:   nil,
+			}
+			for _, requiredRole := range allRoles {
+				expected := testParams.expectedToHave[requiredRole]
+				actual := claims.HasOrgRole(requiredRole)
+				assert.Equal(t, expected, actual)
+			}
+
+		})
+	}
 }
