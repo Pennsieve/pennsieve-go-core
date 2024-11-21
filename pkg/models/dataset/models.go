@@ -2,7 +2,7 @@ package dataset
 
 import (
 	"fmt"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
 )
 
 // Claim provides an object that describes a Role and a Target

@@ -1,6 +1,7 @@
 package pgdb
 
 import (
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
 	"strings"
 	"time"
 )
@@ -9,12 +10,12 @@ type DbPermission int64
 
 const (
 	NoPermission DbPermission = 0
-	Guest                     = 1
-	Read                      = 2
-	Write                     = 4
-	Delete                    = 8
-	Administer                = 16
-	Owner                     = 32
+	Guest        DbPermission = 1
+	Read         DbPermission = 2
+	Write        DbPermission = 4
+	Delete       DbPermission = 8
+	Administer   DbPermission = 16
+	Owner        DbPermission = 32
 )
 
 func (s DbPermission) String() string {
@@ -55,30 +56,34 @@ func FromRole(role string) DbPermission {
 	}
 }
 
-func (s DbPermission) AsRoleString() string {
+func (s DbPermission) ToRole() role.Role {
 	switch s {
 	case NoPermission:
-		return "none"
+		return role.None
 	case Guest:
-		return "guest"
+		return role.Guest
 	case Read:
-
-		return "viewer"
-	case Write:
-
-		return "editor"
-	case Delete:
-
-		return "editor"
+		return role.Viewer
+	case Write, Delete:
+		return role.Editor
 	case Administer:
-
-		return "manager"
+		return role.Manager
 	case Owner:
-
-		return "owner"
+		return role.Owner
 	default:
-		return "none"
+		return role.None
 	}
+}
+
+// ImpliesRole returns true if this DbPermission implies the given requiredRole and false otherwise
+// That is, if a user has this DbPermission and an action requires requiredRole, then the
+// user is authorized to perform the action if this method returns true
+func (s DbPermission) ImpliesRole(requiredRole role.Role) bool {
+	return s.ToRole().Implies(requiredRole)
+}
+
+func (s DbPermission) AsRoleString() string {
+	return strings.ToLower(s.ToRole().String())
 }
 
 type OrganizationUser struct {

@@ -1,7 +1,7 @@
 package permissions
 
 import (
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
 )
 
 type DatasetPermission int64

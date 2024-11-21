@@ -3,10 +3,10 @@ package authorizer
 import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/authorizer/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/permissions"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/teamUser"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/user"
 	log "github.com/sirupsen/logrus"

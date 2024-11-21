@@ -5,7 +5,7 @@ import (
 	"database/sql/driver"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
 	"time"
 )
 

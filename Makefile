@@ -1,4 +1,4 @@
-.PHONY: help clean test test-ci start-dynamodb docker-clean
+.PHONY: help clean test test-ci start-services docker-clean
 
 .DEFAULT: help
 
@@ -11,23 +11,23 @@ help:
 	@echo "start-dynamodb 	- Start local DynamoDB container for testing"
 
 test:
-	docker-compose -f docker-compose.test.yml down --remove-orphans
-	docker-compose -f docker-compose.test.yml up --exit-code-from local_tests local_tests
+	docker compose -f docker-compose.test.yml down --remove-orphans
+	docker compose -f docker-compose.test.yml up --exit-code-from local_tests local_tests
 
 test-ci:
 	mkdir -p test-dynamodb-data
 	chmod -R 777 test-dynamodb-data
-	docker-compose -f docker-compose.test.yml down --remove-orphans
-	docker-compose -f docker-compose.test.yml up --exit-code-from ci_tests ci_tests
+	docker compose -f docker-compose.test.yml down --remove-orphans
+	docker compose -f docker-compose.test.yml up --exit-code-from ci_tests ci_tests
 
-# Start a clean DynamoDB container for local testing
-start-dynamodb: docker-clean
-	docker-compose -f docker-compose.test.yml up dynamodb
+# Start clean external service containers for local testing
+start-services: docker-clean
+	docker compose -f docker-compose.test.yml up -d dynamodb pennsievedb
 
 
 # Spin down active docker containers.
 docker-clean:
-	docker-compose -f docker-compose.test.yml down
+	docker compose -f docker-compose.test.yml down
 
 # Remove dydb database
 clean: docker-clean
