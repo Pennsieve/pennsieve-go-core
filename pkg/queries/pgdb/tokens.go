@@ -7,8 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//GetTokenByCognitoId returns a user from Postgress based on his/her cognito-id
-//This function also returns the preferred org and whether the user is a super-admin.
+// GetTokenByCognitoId returns a user from Postgress based on his/her cognito-id
+// This function also returns the preferred org and whether the user is a super-admin.
 func (q *Queries) GetTokenByCognitoId(ctx context.Context, id string) (*pgdb.Token, error) {
 
 	queryStr := "SELECT id, name, token, organization_id, user_id, cognito_id, last_used, created_at, updated_at " +
@@ -41,13 +41,14 @@ func (q *Queries) GetTokenByCognitoId(ctx context.Context, id string) (*pgdb.Tok
 // GetUserByCognitoId returns a Pennsieve User based on the cognito id in the token pool.
 func (q *Queries) GetUserByCognitoId(ctx context.Context, id string) (*pgdb.User, error) {
 
-	queryStr := "SELECT pennsieve.users.id, email, first_name, last_name, is_super_admin, pennsieve.tokens.organization_id as preferred_org_id " +
+	queryStr := "SELECT pennsieve.users.id, pennsieve.users.node_id, email, first_name, last_name, is_super_admin, pennsieve.tokens.organization_id as preferred_org_id " +
 		"FROM pennsieve.users JOIN pennsieve.tokens ON pennsieve.tokens.user_id = pennsieve.users.id WHERE pennsieve.tokens.token=$1;"
 
 	var user pgdb.User
 	row := q.db.QueryRowContext(ctx, queryStr, id)
 	err := row.Scan(
 		&user.Id,
+		&user.NodeId,
 		&user.Email,
 		&user.FirstName,
 		&user.LastName,
