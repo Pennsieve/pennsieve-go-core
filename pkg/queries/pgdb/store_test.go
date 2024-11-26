@@ -19,6 +19,14 @@ var publishingTeamId int64
 var publishingTeamName string
 var publishingTeamNodeId string
 
+// From seed DB
+const org1NodeId = "N:organization:88c078d6-1827-4e14-867b-801448fe0622"
+const org2NodeId = "N:organization:320813c5-3ea3-4c3b-aca5-9c6221e8d5f8"
+const org3NodeId = "N:organization:4fb6fec6-9b2e-4885-91ff-7b3cf6579cd0"
+const org4NodeId = "N:organization:8f60b0fd-55b7-4efa-b1b1-8204111117d3"
+
+const org402NodeId = "N:organization:b137251c-ff5c-45aa-8c7e-9a168be5d94e"
+
 func logFatalError(message string, err error) {
 	log.Fatal(fmt.Sprintf("%s (error: %+v)", message, err))
 }
@@ -90,7 +98,7 @@ func addOrganization(db *sql.DB) {
 			Id:     402,
 			Name:   "Lots of Features",
 			Slug:   "featureful",
-			NodeId: "N:organization:b137251c-ff5c-45aa-8c7e-9a168be5d94e",
+			NodeId: org402NodeId,
 		},
 			encryptionKeyId: "NO_ENCRYPTION_KEY"},
 	}
