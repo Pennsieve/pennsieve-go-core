@@ -115,7 +115,7 @@ func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organi
 		return nil, err
 	}
 
-	allFeatures, err := q.GetFeatureFlags(ctx, organizationId)
+	enabledFeatures, err := q.GetEnabledFeatureFlags(ctx, organizationId)
 	if err != nil {
 		log.Error("Unable to check Feature Flags: ", err)
 		return nil, err
@@ -125,7 +125,7 @@ func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organi
 		Role:            currentOrgUser.DbPermission,
 		IntId:           organizationId,
 		NodeId:          org.NodeId,
-		EnabledFeatures: allFeatures,
+		EnabledFeatures: enabledFeatures,
 	}
 
 	return &orgRole, nil
@@ -159,7 +159,7 @@ func (q *Queries) GetOrganizationClaimByNodeId(ctx context.Context, userId int64
 	query := `SELECT o.id, ou.permission_bit, f.feature, f.enabled, f.created_at, f.updated_at 
 			  FROM pennsieve.users u JOIN pennsieve.organization_user ou ON u.id = ou.user_id
          			                 JOIN pennsieve.organizations o ON ou.organization_id = o.id
-         			            LEFT JOIN pennsieve.feature_flags f ON o.id = f.organization_id
+         			            LEFT JOIN pennsieve.feature_flags f ON o.id = f.organization_id and f.enabled = true
 			  WHERE u.id = $1 AND o.node_id = $2`
 
 	rows, err := q.db.QueryContext(ctx, query, userId, organizationNodeId)

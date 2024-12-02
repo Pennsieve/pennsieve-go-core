@@ -151,11 +151,7 @@ func testGetOrganizationClaimManyFeatureFlags(t *testing.T, store *SQLStore, org
 	assert.Equal(t, organizationId, orgClaim.IntId)
 	assert.Equal(t, org402NodeId, orgClaim.NodeId)
 	assert.Equal(t, pgdb.Read, orgClaim.Role)
-	assert.Len(t, orgClaim.EnabledFeatures, 5)
-	disabledIndex := slices.IndexFunc(orgClaim.EnabledFeatures, func(flag pgdb.FeatureFlags) bool {
-		return flag.Feature == "disabled feature" && flag.Enabled == false
-	})
-	assert.True(t, disabledIndex >= 0, "expected disabled feature not found in %s", orgClaim.EnabledFeatures)
+	assert.Len(t, orgClaim.EnabledFeatures, 4)
 	enabledFeatures := []string{"one", "two", "three", "four"}
 	for _, enabledFeature := range enabledFeatures {
 		index := slices.IndexFunc(orgClaim.EnabledFeatures, func(flag pgdb.FeatureFlags) bool {
@@ -172,11 +168,7 @@ func testGetOrganizationClaimManyFeatureFlags(t *testing.T, store *SQLStore, org
 		assert.Equal(t, organizationId, orgClaim.IntId)
 		assert.Equal(t, org402NodeId, orgClaim.NodeId)
 		assert.Equal(t, pgdb.Read, orgClaim.Role)
-		assert.Len(t, orgClaim.EnabledFeatures, 5)
-		disabledIndex := slices.IndexFunc(orgClaim.EnabledFeatures, func(flag pgdb.FeatureFlags) bool {
-			return flag.Feature == "disabled feature" && flag.Enabled == false
-		})
-		assert.True(t, disabledIndex >= 0, "expected disabled feature not found in %s", orgClaim.EnabledFeatures)
+		assert.Len(t, orgClaim.EnabledFeatures, 4)
 		enabledFeatures := []string{"one", "two", "three", "four"}
 		for _, enabledFeature := range enabledFeatures {
 			index := slices.IndexFunc(orgClaim.EnabledFeatures, func(flag pgdb.FeatureFlags) bool {
