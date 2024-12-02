@@ -14,14 +14,15 @@ func TestOrganizationUser(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore, orgId int,
 	){
-		"Get Organization User":                                  testGetOrganizationUser,
-		"Add Organization User":                                  testAddOrganizationUser,
-		"Add Existing OrgUser Membership":                        testAddExistingOrgUserMembership,
-		"Add Guest to Organization":                              testAddGuestToOrganization,
-		"Get Organization Claim":                                 testGetOrganizationClaim,
-		"Get Organization Claim error when no org user":          testGetOrganizationClaimNoOrgUser,
-		"Get Organization Claim when org has no feature flags":   testGetOrganizationClaimNoFeatureFlags,
-		"Get Organization Claim when org has many feature flags": testGetOrganizationClaimManyFeatureFlags,
+		"Get Organization User":                                           testGetOrganizationUser,
+		"Add Organization User":                                           testAddOrganizationUser,
+		"Add Existing OrgUser Membership":                                 testAddExistingOrgUserMembership,
+		"Add Guest to Organization":                                       testAddGuestToOrganization,
+		"Get Organization Claim":                                          testGetOrganizationClaim,
+		"Get Organization Claim error when no org user":                   testGetOrganizationClaimNoOrgUser,
+		"Get Organization Claim when org has no feature flags":            testGetOrganizationClaimNoFeatureFlags,
+		"Get Organization Claim when org has many feature flags":          testGetOrganizationClaimManyFeatureFlags,
+		"Get Organization Claim when org has only disabled feature flags": testGetOrganizationClaimAllDisabled,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -177,5 +178,28 @@ func testGetOrganizationClaimManyFeatureFlags(t *testing.T, store *SQLStore, org
 			assert.True(t, index >= 0, "expected enabled feature %s not found in %s", enabledFeature, orgClaim.EnabledFeatures)
 
 		}
+	}
+}
+
+func testGetOrganizationClaimAllDisabled(t *testing.T, store *SQLStore, orgId int) {
+	userId := int64(3403)
+	organizationId := int64(403)
+
+	// get the organization claim by org id
+	orgClaim, err := store.GetOrganizationClaim(context.TODO(), userId, organizationId)
+	require.NoError(t, err)
+	assert.Equal(t, organizationId, orgClaim.IntId)
+	assert.Equal(t, org403NodeId, orgClaim.NodeId)
+	assert.Equal(t, pgdb.Read, orgClaim.Role)
+	assert.Empty(t, orgClaim.EnabledFeatures)
+
+	// get org claim by node id
+	{
+		orgClaim, err := store.GetOrganizationClaimByNodeId(context.TODO(), userId, org403NodeId)
+		require.NoError(t, err)
+		assert.Equal(t, organizationId, orgClaim.IntId)
+		assert.Equal(t, org403NodeId, orgClaim.NodeId)
+		assert.Equal(t, pgdb.Read, orgClaim.Role)
+		assert.Empty(t, orgClaim.EnabledFeatures)
 	}
 }

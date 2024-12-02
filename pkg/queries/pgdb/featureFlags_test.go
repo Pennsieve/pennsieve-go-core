@@ -54,6 +54,7 @@ func TestQueries_GetEnabledFeatureFlags(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		tt *testing.T, store *SQLStore,
 	){
+		"no feature flags":           testNoFeatureFlagsGetEnabled,
 		"no enabled feature flags":   testNoEnabledFeatureFlags,
 		"some enabled feature flags": testSomeEnabledFeatureFlags,
 	} {
@@ -64,8 +65,15 @@ func TestQueries_GetEnabledFeatureFlags(t *testing.T) {
 	}
 }
 
-func testNoEnabledFeatureFlags(t *testing.T, store *SQLStore) {
+func testNoFeatureFlagsGetEnabled(t *testing.T, store *SQLStore) {
 	orgId := int64(2)
+	featureFlags, err := store.GetEnabledFeatureFlags(context.Background(), orgId)
+	require.NoError(t, err)
+	assert.Empty(t, featureFlags)
+}
+
+func testNoEnabledFeatureFlags(t *testing.T, store *SQLStore) {
+	orgId := int64(403)
 	featureFlags, err := store.GetEnabledFeatureFlags(context.Background(), orgId)
 	require.NoError(t, err)
 	assert.Empty(t, featureFlags)

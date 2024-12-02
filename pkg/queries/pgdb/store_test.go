@@ -26,6 +26,7 @@ const org3NodeId = "N:organization:4fb6fec6-9b2e-4885-91ff-7b3cf6579cd0"
 const org4NodeId = "N:organization:8f60b0fd-55b7-4efa-b1b1-8204111117d3"
 
 const org402NodeId = "N:organization:b137251c-ff5c-45aa-8c7e-9a168be5d94e"
+const org403NodeId = "N:organization:025e9cab-427e-48f7-a423-113dd550cc2d"
 
 func logFatalError(message string, err error) {
 	log.Fatal(fmt.Sprintf("%s (error: %+v)", message, err))
@@ -101,6 +102,13 @@ func addOrganization(db *sql.DB) {
 			NodeId: org402NodeId,
 		},
 			encryptionKeyId: "NO_ENCRYPTION_KEY"},
+		{Organization: pgdb.Organization{
+			Id:     403,
+			Name:   "Lots of disabled Features",
+			Slug:   "disabled featureful",
+			NodeId: org403NodeId,
+		},
+			encryptionKeyId: "NO_ENCRYPTION_KEY"},
 	}
 	statement := "INSERT INTO pennsieve.organizations (id, node_id, name, slug, encryption_key_id) VALUES ($1, $2, $3, $4, $5)"
 	for _, org := range orgs {
@@ -118,6 +126,11 @@ func addFeatureFlags(db *sql.DB) {
 		{OrganizationId: 402, Feature: "feature three", Enabled: true},
 		{OrganizationId: 402, Feature: "feature four", Enabled: true},
 		{OrganizationId: 402, Feature: "disabled feature", Enabled: false},
+
+		{OrganizationId: 403, Feature: "disabled feature one", Enabled: false},
+		{OrganizationId: 403, Feature: "disabled feature two", Enabled: false},
+		{OrganizationId: 403, Feature: "disabled feature three", Enabled: false},
+		{OrganizationId: 403, Feature: "disabled feature four", Enabled: false},
 	}
 	statement := "INSERT INTO pennsieve.feature_flags (organization_id, feature, enabled) VALUES ($1, $2, $3)"
 	for _, feature := range features {
@@ -155,6 +168,7 @@ func addUsers(db *sql.DB) {
 		{userId: 1003, nodeId: "N:user:3", emailAddress: "user3@pennsieve.org", firstName: "three", lastName: "user", preferredOrgId: 3, cognitoId: "33333333-3333-3333-3333-333333333333", isSuperAdmin: "f"},
 		{userId: 1004, nodeId: "N:user:4", emailAddress: "user4@pennsieve.org", firstName: "four", lastName: "user", preferredOrgId: 3, cognitoId: "44444444-4444-4444-4444-444444444444", isSuperAdmin: "f"},
 		{userId: 3402, nodeId: "N:user:3402", emailAddress: "user3402@pennsieve.org", firstName: "threefour", lastName: "ohtwo", preferredOrgId: 402, cognitoId: "34023402-3402-3402-3402-340234023402", isSuperAdmin: "f"},
+		{userId: 3403, nodeId: "N:user:3403", emailAddress: "user3403@pennsieve.org", firstName: "threefour", lastName: "ohthree", preferredOrgId: 403, cognitoId: "34033403-3403-3403-3403-340334033403", isSuperAdmin: "f"},
 	}
 
 	statement := "INSERT INTO pennsieve.users (id, node_id, email, first_name, last_name, preferred_org_id, cognito_id, is_super_admin)" +
@@ -218,6 +232,7 @@ func addUsersToOrganizations(db *sql.DB) {
 		{organizationId: 3, userId: 1004, permissionBit: pgdb.Delete},
 		{organizationId: 1, userId: 2001, permissionBit: pgdb.Delete},
 		{organizationId: 402, userId: 3402, permissionBit: pgdb.Read},
+		{organizationId: 403, userId: 3403, permissionBit: pgdb.Read},
 	}
 
 	statement := "INSERT INTO pennsieve.organization_user (organization_id, user_id, permission_bit) VALUES ($1, $2, $3)"
