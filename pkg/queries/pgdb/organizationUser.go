@@ -132,7 +132,7 @@ func (q *Queries) GetOrganizationClaim(ctx context.Context, userId int64, organi
 
 }
 
-// nullableFeatureFlag is a temp struct used to hold results from GetOrganizationClaimByNodeId which
+// nullableFeatureFlag is a temp struct used to hold results from the query used by GetOrganizationClaimByNodeId which
 // will return rows with null values for featureFlag columns if the org has no flags set
 type nullableFeatureFlag struct {
 	feature   sql.NullString
