@@ -147,6 +147,10 @@ func (q *orgClaimQuery) paramsMsg(userId int64, orgIdentifier any) string {
 	return fmt.Sprintf(q.paramsMsgFormat, userId, orgIdentifier)
 }
 
+// orgClaimQueryFormat is the base query used by both *Queries.GetOrganizationClaim and *Queries.GetOrganizationClaimByNodeId
+// to construct org claims.
+// The only difference is that *Queries.GetOrganizationClaim uses the org's int id as the organization identifier
+// (query parameter $2) and *Queries.GetOrganizationClaimByNodeId uses the org's node id instead.
 const orgClaimQueryFormat = `SELECT o.id, o.node_id, ou.permission_bit, f.feature, f.enabled, f.created_at, f.updated_at 
 			  		         FROM pennsieve.users u JOIN pennsieve.organization_user ou ON u.id = ou.user_id
          			             			        JOIN pennsieve.organizations o ON ou.organization_id = o.id
