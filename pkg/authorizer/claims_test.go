@@ -33,7 +33,8 @@ func TestClaims(t *testing.T) {
 		"Service Claim as Token":              testServiceClaimAsToken,
 		"Nil Claims have no org role":         testNilClaimsHaveNoOrgRole,
 		"HasOrgRole":                          testHasOrgRole,
-		"BUG Failing to parse Team Claims":    testBugFailingToParseTeamClaims,
+		"BUG Failing to parse Team Claims":    testBugFailToParseTeamsClaim,
+		"Successfully parse Team Claims":      testBugSuccessfullyParseTeamClaims,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			fn(t)
@@ -266,8 +267,18 @@ func testHasOrgRole(t *testing.T) {
 	}
 }
 
-func testBugFailingToParseTeamClaims(t *testing.T) {
+func testBugFailToParseTeamsClaim(t *testing.T) {
 	input := []byte("{\n    \"claims\": {\n        \"org_claim\": {\n            \"EnabledFeatures\": [\n                {\n                    \"created_at\": \"2023-08-23T22:50:03.381715Z\",\n                    \"enabled\": true,\n                    \"feature\": \"publishing50_feature\",\n                    \"organization_id\": 39,\n                    \"updated_at\": \"2023-08-23T22:50:03.381715Z\"\n                }\n            ],\n            \"IntId\": 39,\n            \"NodeId\": \"N:organization:7c2de0a6-5972-4138-99ad-cc0aff0fb67f\",\n            \"Role\": 32\n        },\n        \"teams_claim\": [\n            {\n                \"IntId\": 91,\n                \"Name\": \"Publishers\",\n                \"NodeId\": \"N:team:3a616648-9ad0-4809-be63-8615f08babad\",\n                \"Permission\": 16,\n                \"TeamType\": \"publishers\"\n            }\n        ],\n        \"user_claim\": {\n            \"Id\": 177,\n            \"IsSuperAdmin\": true,\n            \"NodeId\": \"N:user:61e7c1cf-a836-421b-b919-a2309402c9d6\"\n        }\n    }\n}\n")
+	var claims map[string]interface{}
+	err := json.Unmarshal(input, &claims)
+	assert.NoError(t, err)
+	parsedClaims := ParseClaims(claims)
+	fmt.Println(parsedClaims)
+	assert.Nil(t, parsedClaims.TeamClaims)
+}
+
+func testBugSuccessfullyParseTeamClaims(t *testing.T) {
+	input := []byte("{\n    \"claims\": {\n        \"org_claim\": {\n            \"EnabledFeatures\": [\n                {\n                    \"created_at\": \"2023-08-23T22:50:03.381715Z\",\n                    \"enabled\": true,\n                    \"feature\": \"publishing50_feature\",\n                    \"organization_id\": 39,\n                    \"updated_at\": \"2023-08-23T22:50:03.381715Z\"\n                }\n            ],\n            \"IntId\": 39,\n            \"NodeId\": \"N:organization:7c2de0a6-5972-4138-99ad-cc0aff0fb67f\",\n            \"Role\": 32\n        },\n        \"team_claims\": [\n            {\n                \"IntId\": 91,\n                \"Name\": \"Publishers\",\n                \"NodeId\": \"N:team:3a616648-9ad0-4809-be63-8615f08babad\",\n                \"Permission\": 16,\n                \"TeamType\": \"publishers\"\n            }\n        ],\n        \"user_claim\": {\n            \"Id\": 177,\n            \"IsSuperAdmin\": true,\n            \"NodeId\": \"N:user:61e7c1cf-a836-421b-b919-a2309402c9d6\"\n        }\n    }\n}\n")
 	var claims map[string]interface{}
 	err := json.Unmarshal(input, &claims)
 	assert.NoError(t, err)
