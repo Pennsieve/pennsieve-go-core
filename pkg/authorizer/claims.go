@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+const LabelUserClaim = "user_claim"
+const LabelOrganizationClaim = "org_claim"
+const LabelTeamClaims = "team_claims"
+const LabelDatasetClaim = "dataset_claim"
+const LabelServiceClaim = "service_claim"
+
 // Claims is an object containing claims and user info
 type Claims struct {
 	OrgClaim     organization.Claim
@@ -27,7 +33,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 	log.WithFields(log.Fields{"service": "Authorizer", "function": "ParseClaims()", "claims": claims}).Debug()
 
 	var orgClaim organization.Claim
-	if val, ok := claims["org_claim"]; ok {
+	if val, ok := claims[LabelOrganizationClaim]; ok {
 		orgClaims := val.(map[string]interface{})
 		orgRole := int64(orgClaims["Role"].(float64))
 		orgClaim = organization.Claim{
@@ -39,7 +45,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 	}
 
 	var datasetClaim dataset.Claim
-	if val, ok := claims["dataset_claim"]; ok {
+	if val, ok := claims[LabelDatasetClaim]; ok {
 		if val != nil {
 			datasetClaims := val.(map[string]interface{})
 			datasetRole := int64(datasetClaims["Role"].(float64))
@@ -52,7 +58,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 	}
 
 	var userClaim user.Claim
-	if val, ok := claims["user_claim"]; ok {
+	if val, ok := claims[LabelUserClaim]; ok {
 		if val != nil {
 			userClaims := val.(map[string]interface{})
 			userClaim = user.Claim{
@@ -64,7 +70,7 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 	}
 
 	var teamClaims []teamUser.Claim
-	if val, ok := claims["team_claims"]; ok {
+	if val, ok := claims[LabelTeamClaims]; ok {
 		if val != nil {
 			tcs := val.([]interface{})
 			for _, item := range tcs {
@@ -135,7 +141,7 @@ func GenerateServiceClaim(duration time.Duration) models.ServiceClaim {
 	issuedTime := time.Now().Unix()
 	expiresAt := issuedTime + duration.Milliseconds()/1000
 	return models.ServiceClaim{
-		Type:      "service_claim",
+		Type:      LabelServiceClaim,
 		IssuedAt:  strconv.FormatInt(issuedTime, 10),
 		ExpiresAt: strconv.FormatInt(expiresAt, 10),
 	}
