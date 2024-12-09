@@ -1,6 +1,7 @@
 package authorizer
 
 import (
+	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/authorizer/models"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/organization"
@@ -22,21 +23,26 @@ const LabelServiceClaim = "service_claim"
 
 // Claims is an object containing claims and user info
 type Claims struct {
-	OrgClaim     organization.Claim
-	DatasetClaim dataset.Claim
-	UserClaim    user.Claim
-	TeamClaims   []teamUser.Claim
+	OrgClaim     *organization.Claim
+	DatasetClaim *dataset.Claim
+	UserClaim    *user.Claim
+	TeamClaims   []*teamUser.Claim
+}
+
+func (c *Claims) String() string {
+	return fmt.Sprintf("{ OrgClaim: %s, DatasetClaim: %s, UserClaim: %s, TeamClaims: %s }",
+		c.OrgClaim, c.DatasetClaim, c.UserClaim, c.TeamClaims)
 }
 
 // ParseClaims creates a Claims object from a string map which is returned by the authorizer.
 func ParseClaims(claims map[string]interface{}) *Claims {
 	log.WithFields(log.Fields{"service": "Authorizer", "function": "ParseClaims()", "claims": claims}).Debug()
 
-	var orgClaim organization.Claim
+	var orgClaim *organization.Claim
 	if val, ok := claims[LabelOrganizationClaim]; ok {
 		orgClaims := val.(map[string]interface{})
 		orgRole := int64(orgClaims["Role"].(float64))
-		orgClaim = organization.Claim{
+		orgClaim = &organization.Claim{
 			Role:            pgdb.DbPermission(orgRole),
 			IntId:           int64(orgClaims["IntId"].(float64)),
 			NodeId:          orgClaims["NodeId"].(string),
@@ -44,12 +50,12 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		}
 	}
 
-	var datasetClaim dataset.Claim
+	var datasetClaim *dataset.Claim
 	if val, ok := claims[LabelDatasetClaim]; ok {
 		if val != nil {
 			datasetClaims := val.(map[string]interface{})
 			datasetRole := int64(datasetClaims["Role"].(float64))
-			datasetClaim = dataset.Claim{
+			datasetClaim = &dataset.Claim{
 				Role:   role.Role(datasetRole),
 				NodeId: datasetClaims["NodeId"].(string),
 				IntId:  int64(datasetClaims["IntId"].(float64)),
@@ -57,11 +63,11 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		}
 	}
 
-	var userClaim user.Claim
+	var userClaim *user.Claim
 	if val, ok := claims[LabelUserClaim]; ok {
 		if val != nil {
 			userClaims := val.(map[string]interface{})
-			userClaim = user.Claim{
+			userClaim = &user.Claim{
 				Id:           int64(userClaims["Id"].(float64)),
 				NodeId:       userClaims["NodeId"].(string),
 				IsSuperAdmin: userClaims["IsSuperAdmin"].(bool),
@@ -69,13 +75,13 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		}
 	}
 
-	var teamClaims []teamUser.Claim
+	var teamClaims []*teamUser.Claim
 	if val, ok := claims[LabelTeamClaims]; ok {
 		if val != nil {
 			tcs := val.([]interface{})
 			for _, item := range tcs {
 				tc := item.(map[string]interface{})
-				teamClaim := teamUser.Claim{
+				teamClaim := &teamUser.Claim{
 					IntId:      int64(tc["IntId"].(float64)),
 					Name:       tc["Name"].(string),
 					NodeId:     tc["NodeId"].(string),

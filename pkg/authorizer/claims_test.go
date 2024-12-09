@@ -33,8 +33,18 @@ func TestClaims(t *testing.T) {
 		"Service Claim as Token":              testServiceClaimAsToken,
 		"Nil Claims have no org role":         testNilClaimsHaveNoOrgRole,
 		"HasOrgRole":                          testHasOrgRole,
-		"BUG Failing to parse Team Claims":    testBugFailToParseTeamsClaim,
-		"Successfully parse Team Claims":      testBugSuccessfullyParseTeamClaims,
+	} {
+		t.Run(scenario, func(t *testing.T) {
+			fn(t)
+		})
+	}
+}
+
+func TestClaimBugs(t *testing.T) {
+	for scenario, fn := range map[string]func(
+		tt *testing.T){
+		"Fail to parse Teams Claim":      testBugFailToParseTeamsClaim,
+		"Successfully parse Team Claims": testBugSuccessfullyParseTeamClaims,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			fn(t)
@@ -43,21 +53,21 @@ func TestClaims(t *testing.T) {
 }
 
 func generated(withTeamClaims bool, withPublishingTeam bool) map[string]interface{} {
-	orgClaim := make(map[string]interface{})
-	orgClaim["Role"] = float64(16)
-	orgClaim["IntId"] = float64(2001)
-	orgClaim["NodeId"] = "N:organization:9e84e26c-1919-4864-9edc-b7082627601f"
-	orgClaim["EnabledFeatures"] = nil
+	orgClaimV := make(map[string]interface{})
+	orgClaimV["Role"] = float64(16)
+	orgClaimV["IntId"] = float64(2001)
+	orgClaimV["NodeId"] = "N:organization:9e84e26c-1919-4864-9edc-b7082627601f"
+	orgClaimV["EnabledFeatures"] = nil
 
-	datasetClaim := make(map[string]interface{})
-	datasetClaim["Role"] = float64(32)
-	datasetClaim["NodeId"] = "N:dataset:d83884a5-3034-4c08-86c0-9435757c5faa"
-	datasetClaim["IntId"] = float64(2002)
+	datasetClaimV := make(map[string]interface{})
+	datasetClaimV["Role"] = float64(32)
+	datasetClaimV["NodeId"] = "N:dataset:d83884a5-3034-4c08-86c0-9435757c5faa"
+	datasetClaimV["IntId"] = float64(2002)
 
-	userClaim := make(map[string]interface{})
-	userClaim["Id"] = float64(2003)
-	userClaim["NodeId"] = "N:user:bb469ddb-82c5-405d-a700-7630bf49c388"
-	userClaim["IsSuperAdmin"] = false
+	userClaimV := make(map[string]interface{})
+	userClaimV["Id"] = float64(2003)
+	userClaimV["NodeId"] = "N:user:bb469ddb-82c5-405d-a700-7630bf49c388"
+	userClaimV["IsSuperAdmin"] = false
 
 	var teamClaims []interface{}
 
@@ -84,10 +94,10 @@ func generated(withTeamClaims bool, withPublishingTeam bool) map[string]interfac
 	}
 
 	claims := map[string]interface{}{
-		"user_claim":    userClaim,
-		"org_claim":     orgClaim,
-		"dataset_claim": datasetClaim,
-		"team_claims":   teamClaims,
+		LabelUserClaim:         userClaimV,
+		LabelOrganizationClaim: orgClaimV,
+		LabelDatasetClaim:      datasetClaimV,
+		LabelTeamClaims:        teamClaims,
 	}
 
 	return claims
@@ -130,8 +140,8 @@ func testNoTeamClaims(t *testing.T) {
 
 var duration time.Duration = 5 * time.Minute
 
-func orgClaim() organization.Claim {
-	return organization.Claim{
+func orgClaim() *organization.Claim {
+	return &organization.Claim{
 		Role:            pgdb.Owner,
 		IntId:           367,
 		NodeId:          "N:organization:06c8002d-477a-45e9-ae0d-06f4b218628f",
@@ -139,8 +149,8 @@ func orgClaim() organization.Claim {
 	}
 }
 
-func datasetClaim() dataset.Claim {
-	return dataset.Claim{
+func datasetClaim() *dataset.Claim {
+	return &dataset.Claim{
 		Role:   role.Owner,
 		NodeId: "N:dataset:ca645a17-fb55-4afd-aff8-7e0078b4523f",
 		IntId:  86,
@@ -191,8 +201,8 @@ func testNilClaimsHaveNoOrgRole(t *testing.T) {
 	}
 }
 
-func userClaim() user.Claim {
-	return user.Claim{
+func userClaim() *user.Claim {
+	return &user.Claim{
 		Id:           rand.Int63n(50),
 		NodeId:       fmt.Sprintf("N:user:%s", uuid.NewString()),
 		IsSuperAdmin: false,
@@ -242,7 +252,7 @@ func testHasOrgRole(t *testing.T) {
 		},
 	} {
 		t.Run(testParams.name, func(t *testing.T) {
-			actualOrgClaim := organization.Claim{
+			actualOrgClaim := &organization.Claim{
 				Role:            testParams.role,
 				IntId:           rand.Int63n(50),
 				NodeId:          fmt.Sprintf("N:organization:%s", uuid.NewString()),
@@ -268,21 +278,21 @@ func testHasOrgRole(t *testing.T) {
 }
 
 func testBugFailToParseTeamsClaim(t *testing.T) {
-	input := []byte("{\n    \"claims\": {\n        \"org_claim\": {\n            \"EnabledFeatures\": [\n                {\n                    \"created_at\": \"2023-08-23T22:50:03.381715Z\",\n                    \"enabled\": true,\n                    \"feature\": \"publishing50_feature\",\n                    \"organization_id\": 39,\n                    \"updated_at\": \"2023-08-23T22:50:03.381715Z\"\n                }\n            ],\n            \"IntId\": 39,\n            \"NodeId\": \"N:organization:7c2de0a6-5972-4138-99ad-cc0aff0fb67f\",\n            \"Role\": 32\n        },\n        \"teams_claim\": [\n            {\n                \"IntId\": 91,\n                \"Name\": \"Publishers\",\n                \"NodeId\": \"N:team:3a616648-9ad0-4809-be63-8615f08babad\",\n                \"Permission\": 16,\n                \"TeamType\": \"publishers\"\n            }\n        ],\n        \"user_claim\": {\n            \"Id\": 177,\n            \"IsSuperAdmin\": true,\n            \"NodeId\": \"N:user:61e7c1cf-a836-421b-b919-a2309402c9d6\"\n        }\n    }\n}\n")
+	badClaimSource := "{\n        \"org_claim\": {\n            \"EnabledFeatures\": [\n                {\n                    \"created_at\": \"2023-08-23T22:50:03.381715Z\",\n                    \"enabled\": true,\n                    \"feature\": \"publishing50_feature\",\n                    \"organization_id\": 39,\n                    \"updated_at\": \"2023-08-23T22:50:03.381715Z\"\n                }\n            ],\n            \"IntId\": 39,\n            \"NodeId\": \"N:organization:7c2de0a6-5972-4138-99ad-cc0aff0fb67f\",\n            \"Role\": 32\n        },\n        \"teams_claim\": [\n            {\n                \"IntId\": 91,\n                \"Name\": \"Publishers\",\n                \"NodeId\": \"N:team:3a616648-9ad0-4809-be63-8615f08babad\",\n                \"Permission\": 16,\n                \"TeamType\": \"publishers\"\n            }\n        ],\n        \"user_claim\": {\n            \"Id\": 177,\n            \"IsSuperAdmin\": true,\n            \"NodeId\": \"N:user:61e7c1cf-a836-421b-b919-a2309402c9d6\"\n        }\n    }"
+	input := []byte(badClaimSource)
 	var claims map[string]interface{}
 	err := json.Unmarshal(input, &claims)
 	assert.NoError(t, err)
 	parsedClaims := ParseClaims(claims)
-	fmt.Println(parsedClaims)
-	assert.Nil(t, parsedClaims.TeamClaims)
+	assert.True(t, len(parsedClaims.TeamClaims) == 0)
 }
 
 func testBugSuccessfullyParseTeamClaims(t *testing.T) {
-	input := []byte("{\n    \"claims\": {\n        \"org_claim\": {\n            \"EnabledFeatures\": [\n                {\n                    \"created_at\": \"2023-08-23T22:50:03.381715Z\",\n                    \"enabled\": true,\n                    \"feature\": \"publishing50_feature\",\n                    \"organization_id\": 39,\n                    \"updated_at\": \"2023-08-23T22:50:03.381715Z\"\n                }\n            ],\n            \"IntId\": 39,\n            \"NodeId\": \"N:organization:7c2de0a6-5972-4138-99ad-cc0aff0fb67f\",\n            \"Role\": 32\n        },\n        \"team_claims\": [\n            {\n                \"IntId\": 91,\n                \"Name\": \"Publishers\",\n                \"NodeId\": \"N:team:3a616648-9ad0-4809-be63-8615f08babad\",\n                \"Permission\": 16,\n                \"TeamType\": \"publishers\"\n            }\n        ],\n        \"user_claim\": {\n            \"Id\": 177,\n            \"IsSuperAdmin\": true,\n            \"NodeId\": \"N:user:61e7c1cf-a836-421b-b919-a2309402c9d6\"\n        }\n    }\n}\n")
+	goodClaimSource := "{\n        \"org_claim\": {\n            \"EnabledFeatures\": [\n                {\n                    \"created_at\": \"2023-08-23T22:50:03.381715Z\",\n                    \"enabled\": true,\n                    \"feature\": \"publishing50_feature\",\n                    \"organization_id\": 39,\n                    \"updated_at\": \"2023-08-23T22:50:03.381715Z\"\n                }\n            ],\n            \"IntId\": 39,\n            \"NodeId\": \"N:organization:7c2de0a6-5972-4138-99ad-cc0aff0fb67f\",\n            \"Role\": 32\n        },\n        \"team_claims\": [\n            {\n                \"IntId\": 91,\n                \"Name\": \"Publishers\",\n                \"NodeId\": \"N:team:3a616648-9ad0-4809-be63-8615f08babad\",\n                \"Permission\": 16,\n                \"TeamType\": \"publishers\"\n            }\n        ],\n        \"user_claim\": {\n            \"Id\": 177,\n            \"IsSuperAdmin\": true,\n            \"NodeId\": \"N:user:61e7c1cf-a836-421b-b919-a2309402c9d6\"\n        }\n    }"
+	input := []byte(goodClaimSource)
 	var claims map[string]interface{}
 	err := json.Unmarshal(input, &claims)
 	assert.NoError(t, err)
 	parsedClaims := ParseClaims(claims)
-	fmt.Println(parsedClaims)
-	assert.NotNil(t, parsedClaims.TeamClaims)
+	assert.True(t, len(parsedClaims.TeamClaims) == 1)
 }

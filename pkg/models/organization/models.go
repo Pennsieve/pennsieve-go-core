@@ -15,7 +15,8 @@ type Claim struct {
 }
 
 func (c Claim) String() string {
-	return fmt.Sprintf("OrganizationId: %d - %s", c.IntId, c.Role.String())
+	return fmt.Sprintf("{ Id: %d, NodeId: %s, Role: %d (%s), EnabledFeatures: %+v }",
+		c.IntId, c.NodeId, c.Role, c.Role.String(), c.EnabledFeatures)
 }
 
 // HasRole returns true if this claim contains permissions sufficient to satisfy the given requiredOrgRole

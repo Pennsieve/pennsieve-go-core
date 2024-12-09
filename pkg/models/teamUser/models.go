@@ -14,6 +14,6 @@ type Claim struct {
 }
 
 func (c Claim) String() string {
-	return fmt.Sprintf("Name: %s (id: %d nodeId: %s permission: %d)",
-		c.Name, c.IntId, c.NodeId, c.Permission)
+	return fmt.Sprintf("{ Name: %s, Id: %d, NodeId: %s, Permission: %d (%s) }",
+		c.Name, c.IntId, c.NodeId, c.Permission, c.Permission.String())
 }

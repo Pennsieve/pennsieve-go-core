@@ -26,7 +26,7 @@ type ServiceToken struct {
 	Value string `json:"value"`
 }
 
-func (c ServiceClaim) WithOrganizationClaim(claim organization.Claim) ServiceClaim {
+func (c ServiceClaim) WithOrganizationClaim(claim *organization.Claim) ServiceClaim {
 	c.Roles = append(c.Roles, ServiceRole{
 		Type:   "organization_role",
 		Id:     strconv.FormatInt(claim.IntId, 10),
@@ -36,7 +36,7 @@ func (c ServiceClaim) WithOrganizationClaim(claim organization.Claim) ServiceCla
 	return c
 }
 
-func (c ServiceClaim) WithDatasetClaim(claim dataset.Claim) ServiceClaim {
+func (c ServiceClaim) WithDatasetClaim(claim *dataset.Claim) ServiceClaim {
 	c.Roles = append(c.Roles, ServiceRole{
 		Type:   "dataset_role",
 		Id:     strconv.FormatInt(claim.IntId, 10),
