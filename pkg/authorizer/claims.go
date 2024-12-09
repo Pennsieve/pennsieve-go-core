@@ -26,7 +26,7 @@ type Claims struct {
 	OrgClaim     *organization.Claim
 	DatasetClaim *dataset.Claim
 	UserClaim    *user.Claim
-	TeamClaims   []*teamUser.Claim
+	TeamClaims   []teamUser.Claim
 }
 
 func (c *Claims) String() string {
@@ -75,13 +75,13 @@ func ParseClaims(claims map[string]interface{}) *Claims {
 		}
 	}
 
-	var teamClaims []*teamUser.Claim
+	var teamClaims []teamUser.Claim
 	if val, ok := claims[LabelTeamClaims]; ok {
 		if val != nil {
 			tcs := val.([]interface{})
 			for _, item := range tcs {
 				tc := item.(map[string]interface{})
-				teamClaim := &teamUser.Claim{
+				teamClaim := teamUser.Claim{
 					IntId:      int64(tc["IntId"].(float64)),
 					Name:       tc["Name"].(string),
 					NodeId:     tc["NodeId"].(string),
