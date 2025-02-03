@@ -176,7 +176,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 		var ok bool
 		datasetRole, ok = role.RoleFromString(maybeDatasetRole.String)
 		if !ok {
-			log.Fatalln("Could not map Dataset Role from database string: ", maybeDatasetRole.String)
+			return nil, fmt.Errorf("error mapping Dataset Role from database string: %s", maybeDatasetRole.String)
 		}
 	}
 
@@ -215,7 +215,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 
 		role, ok := role.RoleFromString(roleString)
 		if !ok {
-			log.Fatalln("Could not map Dataset Role from database string.")
+			return nil, fmt.Errorf("error mapping Dataset Role from database string: %s", roleString)
 		}
 		roles = append(roles, role)
 	}

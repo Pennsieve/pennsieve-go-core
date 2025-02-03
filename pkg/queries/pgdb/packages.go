@@ -51,7 +51,7 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 	//prepare the statement
 	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
 	if err != nil {
-		log.Fatalln("ERROR: ", err)
+		return nil, fmt.Errorf("error preparing addFolder statement: %w", err)
 	}
 	//goland:noinspection ALL
 	defer stmt.Close()
@@ -228,8 +228,8 @@ func (q *Queries) GetPackageByNodeId(ctx context.Context, nodeId string) (*pgdb.
 }
 
 // GetPackageAncestorIds returns an array of Package Ids corresponding with the ancestor Package Ids for the provided package.
-// 	- resulting array includes requested package Id as first entry
-//  - resulting array includes first folder in dataset as last entry if package is in nested folder
+//   - resulting array includes requested package Id as first entry
+//   - resulting array includes first folder in dataset as last entry if package is in nested folder
 func (q *Queries) GetPackageAncestorIds(ctx context.Context, packageId int64) ([]int64, error) {
 
 	queryStr := "" +
@@ -272,7 +272,7 @@ func (q *Queries) GetPackageAncestorIds(ctx context.Context, packageId int64) ([
 
 // PRIVATE
 // AddPackages runs the query to insert a set of packages that belong to the same parent folder.
-// 	- If adding packages to root-folder, the parentId should be set to -1
+//   - If adding packages to root-folder, the parentId should be set to -1
 //
 // It returns two arrays:
 //  1. successfully created packages,
@@ -350,7 +350,7 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 	// prepare the statement
 	stmt, err := q.db.PrepareContext(ctx, sqlInsert)
 	if err != nil {
-		log.Fatalln("ERROR: ", err)
+		return nil, nil, fmt.Errorf("error preparing addPackageByParent statement: %w", err)
 	}
 	//goland:noinspection GoUnhandledErrorResult
 	defer stmt.Close()
