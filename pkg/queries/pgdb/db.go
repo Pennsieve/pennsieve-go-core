@@ -43,7 +43,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 func (q *Queries) ShowSearchPath(loc string) {
 	var currentSchema string
 	rr := q.db.QueryRowContext(context.Background(), "show search_path")
-	rr.Scan(&currentSchema)
+	if err := rr.Scan(&currentSchema); err != nil {
+		log.Error("ignoring 'show search_path' error: ", err)
+	}
 	fmt.Printf("%s: Search Path: %v\n", loc, currentSchema)
 }
 
