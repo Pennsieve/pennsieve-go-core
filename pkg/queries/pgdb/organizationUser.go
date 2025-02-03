@@ -17,6 +17,8 @@ func (e OrganizationUserNotFoundError) Error() string {
 	return fmt.Sprintf("organization user was not found (error: %v)", e.ErrorMessage)
 }
 
+// GetOrganizationUserById returns *pgdb.OrganizationUser with the given user id.
+// If no such user exists, returns (nil, sql.ErrNoRows)
 func (q *Queries) GetOrganizationUserById(ctx context.Context, id int64) (*pgdb.OrganizationUser, error) {
 
 	queryStr := "SELECT organization_id, user_id, permission_bit, created_at, updated_at " +
@@ -31,17 +33,14 @@ func (q *Queries) GetOrganizationUserById(ctx context.Context, id int64) (*pgdb.
 		&orgUser.CreatedAt,
 		&orgUser.UpdatedAt)
 
-	switch err {
-	case sql.ErrNoRows:
-		//log.Error("No rows were returned!")
+	if err != nil {
 		return nil, err
-	case nil:
-		return &orgUser, nil
-	default:
-		panic(err)
 	}
+	return &orgUser, nil
 }
 
+// GetOrganizationUser returns the *pgdb.OrganizationUser with the give org and user ids.
+// Returns (nil, OrganizationUserNotFoundError) if no such org user is found
 func (q *Queries) GetOrganizationUser(ctx context.Context, orgId int64, userId int64) (*pgdb.OrganizationUser, error) {
 	queryStr := "SELECT organization_id, user_id, permission_bit, created_at, updated_at " +
 		"FROM pennsieve.organization_user WHERE organization_id=$1 AND user_id=$2;"
@@ -57,12 +56,11 @@ func (q *Queries) GetOrganizationUser(ctx context.Context, orgId int64, userId i
 
 	switch err {
 	case sql.ErrNoRows:
-		fmt.Println("No rows were returned!")
 		return nil, OrganizationUserNotFoundError{fmt.Sprintf("%+v", err)}
 	case nil:
 		return &orgUser, nil
 	default:
-		panic(err)
+		return nil, err
 	}
 }
 

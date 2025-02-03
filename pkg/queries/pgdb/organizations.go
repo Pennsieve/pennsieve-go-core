@@ -2,11 +2,10 @@ package pgdb
 
 import (
 	"context"
-	"database/sql"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	log "github.com/sirupsen/logrus"
 )
 
+// getOrganization returns (nil, sql.ErrNoRows) if no Organization is found
 func (q *Queries) getOrganization(ctx context.Context, query string, value any) (*pgdb.Organization, error) {
 	var organization pgdb.Organization
 	row := q.db.QueryRowContext(ctx, query, value)
@@ -21,15 +20,10 @@ func (q *Queries) getOrganization(ctx context.Context, query string, value any) 
 		&organization.CreatedAt,
 		&organization.UpdatedAt)
 
-	switch err {
-	case sql.ErrNoRows:
-		log.Error("No rows were returned!")
+	if err != nil {
 		return nil, err
-	case nil:
-		return &organization, nil
-	default:
-		panic(err)
 	}
+	return &organization, nil
 }
 
 // GetOrganization returns a single organization

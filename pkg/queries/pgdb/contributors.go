@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	log "github.com/sirupsen/logrus"
 	"strings"
 )
 
@@ -71,8 +70,7 @@ func scanContributor(row *sql.Row) (*pgdb.Contributor, error) {
 		case sql.ErrNoRows:
 			return nil, ContributorNotFoundError{err}
 		default:
-			log.Error("Unknown Error while scanning dataset row: ", err)
-			panic(err)
+			return nil, err
 		}
 	}
 	return &contributor, nil

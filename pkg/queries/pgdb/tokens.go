@@ -2,13 +2,12 @@ package pgdb
 
 import (
 	"context"
-	"database/sql"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	log "github.com/sirupsen/logrus"
 )
 
 // GetTokenByCognitoId returns a user from Postgress based on his/her cognito-id
 // This function also returns the preferred org and whether the user is a super-admin.
+// Returns (nil, sql.ErrNoRows) if no user with the given cognito id exists.
 func (q *Queries) GetTokenByCognitoId(ctx context.Context, id string) (*pgdb.Token, error) {
 
 	queryStr := "SELECT id, name, token, organization_id, user_id, cognito_id, last_used, created_at, updated_at " +
@@ -27,18 +26,14 @@ func (q *Queries) GetTokenByCognitoId(ctx context.Context, id string) (*pgdb.Tok
 		&token.CreatedAt,
 		&token.UpdatedAt)
 
-	switch err {
-	case sql.ErrNoRows:
-		log.Error("No rows were returned!")
+	if err != nil {
 		return nil, err
-	case nil:
-		return &token, nil
-	default:
-		panic(err)
 	}
+	return &token, nil
 }
 
 // GetUserByCognitoId returns a Pennsieve User based on the cognito id in the token pool.
+// Returns (nil, sql.ErrNoRows) if no user with the given token exists
 func (q *Queries) GetUserByCognitoId(ctx context.Context, id string) (*pgdb.User, error) {
 
 	queryStr := "SELECT pennsieve.users.id, pennsieve.users.node_id, email, first_name, last_name, is_super_admin, pennsieve.tokens.organization_id as preferred_org_id " +
@@ -55,13 +50,8 @@ func (q *Queries) GetUserByCognitoId(ctx context.Context, id string) (*pgdb.User
 		&user.IsSuperAdmin,
 		&user.PreferredOrg)
 
-	switch err {
-	case sql.ErrNoRows:
-		log.Errorf("No rows were returned!")
+	if err != nil {
 		return nil, err
-	case nil:
-		return &user, nil
-	default:
-		panic(err)
 	}
+	return &user, nil
 }
