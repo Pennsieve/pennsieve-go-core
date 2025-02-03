@@ -76,7 +76,7 @@ type GetStatusEndpointResponse struct {
 }
 
 type PostResponse struct {
-	ManifestNodeId string                       `json:"manifest_node_id"'`
+	ManifestNodeId string                       `json:"manifest_node_id"`
 	NrFilesUpdated int                          `json:"nr_files_updated"`
 	NrFilesRemoved int                          `json:"nr_files_removed"`
 	UpdatedFiles   []manifestFile.FileStatusDTO `json:"updated_files"`

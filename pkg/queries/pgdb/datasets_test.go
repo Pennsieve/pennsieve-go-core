@@ -9,6 +9,7 @@ import (
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
 	"github.com/pennsieve/pennsieve-go-core/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 )
@@ -121,13 +122,9 @@ func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
 func testCreateDataset(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
-	}
+	require.NoErrorf(t, err, "testCreateDataset(): failed to get default dataset status")
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
-	}
+	require.NoErrorf(t, err, "testCreateDataset(): failed to get default data use agreement")
 	createDatasetParams := CreateDatasetParams{
 		Name:                         "Test Dataset - CreateDataset",
 		Description:                  "Test Dataset - CreateDataset",
@@ -233,13 +230,9 @@ func testAddManagerToDataset(t *testing.T, store *SQLStore, orgId int) {
 func testUnspecifiedLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
-	}
+	require.NoErrorf(t, err, "testUnspecifiedLicenseIsNull(): failed to get default dataset status")
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
-	}
+	require.NoErrorf(t, err, "testUnspecifiedLicenseIsNull(): failed to get default data use agreement")
 	createDatasetParams := CreateDatasetParams{
 		Name:                         "Test Dataset - UnspecifiedLicenseIsNull",
 		Description:                  "Test Dataset - UnspecifiedLicenseIsNull",
@@ -257,13 +250,9 @@ func testUnspecifiedLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
 func testEmptyStringLicenseIsNull(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default dataset status")
-	}
+	require.NoErrorf(t, err, "testEmptyStringLicenseIsNull(): failed to get default dataset status")
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDataset(): failed to get default data use agreement")
-	}
+	require.NoErrorf(t, err, "testEmptyStringLicenseIsNull(): failed to get default data use agreement")
 	createDatasetParams := CreateDatasetParams{
 		Name:                         "Test Dataset - EmptyStringLicenseIsNull",
 		Description:                  "Test Dataset - EmptyStringLicenseIsNull",
@@ -295,13 +284,9 @@ func testUpdatedAtChange(t *testing.T, store *SQLStore, orgId int) {
 func testDefaultDatasetType(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testDefaultDatasetType(): failed to get default dataset status")
-	}
+	require.NoErrorf(t, err, "testDefaultDatasetType(): failed to get default dataset status")
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testDefaultDatasetType(): failed to get default data use agreement")
-	}
+	require.NoErrorf(t, err, "testDefaultDatasetType(): failed to get default data use agreement")
 	createDatasetParams := CreateDatasetParams{
 		Name:                         "Test Default Dataset type is research",
 		Description:                  "Test Default Dataset type is research - description",
@@ -320,13 +305,9 @@ func testDefaultDatasetType(t *testing.T, store *SQLStore, orgId int) {
 func testCreateDatasetTypeRelease(t *testing.T, store *SQLStore, orgId int) {
 	var err error
 	defaultDatasetStatus, err := store.GetDefaultDatasetStatus(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDatasetTypeRelease(): failed to get default dataset status")
-	}
+	require.NoErrorf(t, err, "testCreateDatasetTypeRelease(): failed to get default dataset status")
 	defaultDataUseAgreement, err := store.GetDefaultDataUseAgreement(context.TODO(), orgId)
-	if err != nil {
-		fmt.Errorf("testCreateDatasetTypeRelease(): failed to get default data use agreement")
-	}
+	require.NoErrorf(t, err, "testCreateDatasetTypeRelease(): failed to get default data use agreement")
 	createDatasetParams := CreateDatasetParams{
 		Name:                         "Test Dataset type is release",
 		Description:                  "Test Dataset type is release - description",
