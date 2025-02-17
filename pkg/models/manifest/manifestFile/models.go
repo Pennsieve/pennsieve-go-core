@@ -105,7 +105,7 @@ type DTO struct {
 	FileName string `json:"file_name"`
 	FilePath string `json:"file_path"`
 	FileType string `json:"file_type"`
-	UploadId string `json:"upload_id""`
+	UploadId string `json:"upload_id"`
 	Status   string `json:"status"`
 	Icon     string `json:"icon"`
 }

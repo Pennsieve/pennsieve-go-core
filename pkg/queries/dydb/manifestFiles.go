@@ -285,14 +285,14 @@ func (q *Queries) statusForFileItem(ctx context.Context, tableName string, manif
 
 	result, err := q.db.GetItem(ctx, getItemInput)
 	if err != nil {
-		log.Error("Error getting item from dydb")
+		return -1, fmt.Errorf("error getting manifest file status from dydb: %w", err)
 	}
 
 	var pItem dydb.ManifestFileTable
 	if len(result.Item) > 0 {
 		err = attributevalue.UnmarshalMap(result.Item, &pItem)
 		if err != nil {
-			log.Fatalf(err.Error())
+			return -1, fmt.Errorf("error unmarshalling manifest file item from dydb: %w", err)
 		}
 
 		var m manifestFile.Status
@@ -403,7 +403,8 @@ func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifest
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, fmt.Errorf("error marshalling manifest file item: %w", err)
 			}
 			if len(isInProgress) == 0 {
 				delete(data, "InProgress")
@@ -453,7 +454,8 @@ func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifest
 				log.Fields{
 					"manifest_id": manifestId,
 				},
-			).Fatalln("Unable to Batch Write: ", err)
+			).Error("Unable to Batch Write: ", err)
+			return nil, fmt.Errorf("error batch writing manifest file items: %w", err)
 		}
 
 		nrFilesUpdated += len(writeRequests) - len(data.UnprocessedItems)
@@ -477,7 +479,8 @@ func (q *Queries) syncUpdate(ctx context.Context, fileTableName string, manifest
 					log.Fields{
 						"manifest_id": manifestId,
 					},
-				).Fatalln("Unable to Batch Write: ", err)
+				).Error("Unable to Batch Write: ", err)
+				return nil, fmt.Errorf("error batch writing unprocessed manifest file items: %w", err)
 			}
 
 			nrFilesUpdated += len(unProcessedItems) - len(data.UnprocessedItems)
@@ -563,7 +566,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling manifest file item: %w", err)
 			}
 			delete(data, "InProgress")
 
@@ -591,7 +595,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling mainifest file primary key: %w", err)
 			}
 			request := types.WriteRequest{
 				DeleteRequest: &types.DeleteRequest{
@@ -618,7 +623,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling verified file manifest item: %w", err)
 			}
 			delete(data, "InProgress")
 
@@ -640,7 +646,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling registered manifest file item: %w", err)
 			}
 
 			request := types.WriteRequest{
@@ -668,7 +675,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling verified manifest file item: %w", err)
 			}
 			delete(data, "InProgress")
 
@@ -698,7 +706,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling registered manifest file item: %w", err)
 			}
 
 			request := types.WriteRequest{
@@ -720,7 +729,8 @@ func getWriteRequest(manifestId string, file manifestFile.FileDTO, curStatus man
 						"manifest_id": manifestId,
 						"upload_id":   file.UploadID,
 					},
-				).Fatalf("MarshalMap: %v\n", err)
+				).Errorf("MarshalMap: %v\n", err)
+				return nil, manifestFile.Unknown, fmt.Errorf("error marshalling curStatus manifest file item: %w", err)
 			}
 			delete(data, "InProgress")
 

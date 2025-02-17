@@ -143,6 +143,7 @@ func (q *Queries) GetDatasets(ctx context.Context, organizationId int) ([]pgdb.D
 
 // GetDatasetClaim returns the highest role that the user has for a given dataset.
 // This method checks the roles of the dataset, the teams, and the specific user roles.
+// returns (nil, sql.ErrNoRows) if no dataset with the given nodeId is found
 func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetNodeId string, organizationId int64) (*dataset.Claim, error) {
 
 	// if user is super-admin
@@ -166,14 +167,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 		&maybeDatasetRole)
 
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
-			log.Error("No rows were returned!")
-			return nil, err
-		default:
-			log.Error("Uknown Error while scanning dataset table: ", err)
-			panic(err)
-		}
+		return nil, err
 	}
 
 	// If maybeDatasetRole is set, include the role, otherwise use none-role
@@ -182,7 +176,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 		var ok bool
 		datasetRole, ok = role.RoleFromString(maybeDatasetRole.String)
 		if !ok {
-			log.Fatalln("Could not map Dataset Role from database string: ", maybeDatasetRole.String)
+			return nil, fmt.Errorf("error mapping Dataset Role from database string: %s", maybeDatasetRole.String)
 		}
 	}
 
@@ -221,7 +215,7 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 
 		role, ok := role.RoleFromString(roleString)
 		if !ok {
-			log.Fatalln("Could not map Dataset Role from database string.")
+			return nil, fmt.Errorf("error mapping Dataset Role from database string: %s", roleString)
 		}
 		roles = append(roles, role)
 	}
@@ -261,8 +255,7 @@ func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 		case sql.ErrNoRows:
 			return nil, DatasetUserNotFoundError{fmt.Sprintf("%+v", err)}
 		default:
-			log.Error("Unknown Error while query/scan dataset user table: ", err)
-			panic(err)
+			return nil, err
 		}
 	}
 
@@ -384,8 +377,7 @@ func scanDataset(row *sql.Row) (*pgdb.Dataset, error) {
 		case sql.ErrNoRows:
 			return nil, DatasetNotFoundError{"No rows were returned!"}
 		default:
-			log.Error("Unknown Error while scanning dataset row: ", err)
-			panic(err)
+			return nil, err
 		}
 	}
 

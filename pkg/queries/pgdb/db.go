@@ -43,7 +43,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 func (q *Queries) ShowSearchPath(loc string) {
 	var currentSchema string
 	rr := q.db.QueryRowContext(context.Background(), "show search_path")
-	rr.Scan(&currentSchema)
+	if err := rr.Scan(&currentSchema); err != nil {
+		log.Error("ignoring 'show search_path' error: ", err)
+	}
 	fmt.Printf("%s: Search Path: %v\n", loc, currentSchema)
 }
 
@@ -82,13 +84,13 @@ func ConnectRDS() (*sql.DB, error) {
 
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		panic("configuration error: " + err.Error())
+		return nil, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
 	authenticationToken, err := auth.BuildAuthToken(
 		context.TODO(), dbEndpoint, region, dbUser, cfg.Credentials)
 	if err != nil {
-		panic("failed to create authentication token: " + err.Error())
+		return nil, fmt.Errorf("error building RDS auth token: %w", err)
 	}
 
 	return connect(dbHost, strconv.Itoa(dbPort), dbUser, authenticationToken, dbName, "")
@@ -152,12 +154,12 @@ func connect(dbHost string, dbPort string, dbUser string, authenticationToken st
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("error opening DB connection: %w", err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("error pinging DB connection: %w", err)
 	}
 
 	return db, err
