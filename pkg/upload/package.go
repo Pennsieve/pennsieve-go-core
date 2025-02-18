@@ -14,7 +14,7 @@ func PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
 
 		// Determine Type based on extension, or
 		// return type that is already defined in FileDTO
-		var fileName, fileExtension string
+		var fileExtension string
 		var fType fileType.Type
 		if len(items[i].FileType) == 0 {
 			// 1. Find FileType
@@ -31,7 +31,6 @@ func PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
 				continue
 			}
 
-			fileName = pathParts[r.SubexpIndex("FileName")]
 			fileExtension = pathParts[r.SubexpIndex("Extension")]
 
 			var exists bool
@@ -45,7 +44,7 @@ func PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
 		} else {
 			fType = fileType.Dict[items[i].FileType]
 		}
-		
+
 	}
 	return items
 }
