@@ -45,15 +45,7 @@ func PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
 		} else {
 			fType = fileType.Dict[items[i].FileType]
 		}
-
-		// 2. Implement Merge Strategy
-		switch fType {
-		case fileType.Persyst:
-			persystMerger(fileName, &items[i], items)
-		default:
-			continue
-
-		}
+		
 	}
 	return items
 }
