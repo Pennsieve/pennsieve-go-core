@@ -130,6 +130,12 @@ var FileTypeToInfoDict = map[fileType.Type]Info{
 		Icon:           iconInfo.Timeseries,
 		HasWorkflow:    true,
 	},
+	fileType.BDF: {
+		PackageType:    TimeSeries,
+		PackageSubType: "Timeseries",
+		Icon:           iconInfo.Timeseries,
+		HasWorkflow:    true,
+	},
 	fileType.TDMS: {
 		PackageType:    TimeSeries,
 		PackageSubType: "Timeseries",
