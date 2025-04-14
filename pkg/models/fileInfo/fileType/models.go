@@ -8,6 +8,7 @@ const (
 	PDF
 	MEF
 	EDF
+	BDF
 	TDMS
 	OpenEphys
 	Persyst
@@ -104,7 +105,7 @@ const (
 	ZIP
 )
 
-//String returns the string representation of the File.Type
+// String returns the string representation of the File.Type
 func (s Type) String() string {
 	switch s {
 	case PDF:
@@ -113,6 +114,8 @@ func (s Type) String() string {
 		return "MEF"
 	case EDF:
 		return "EDF"
+	case BDF:
+		return "BDF"
 	case TDMS:
 		return "TDMS"
 	case OpenEphys:
@@ -312,6 +315,7 @@ var Dict = map[string]Type{
 	"PDF":                     PDF,
 	"MEF":                     MEF,
 	"EDF":                     EDF,
+	"BDF":                     BDF,
 	"TDMS":                    TDMS,
 	"OpenEphys":               OpenEphys,
 	"Persyst":                 Persyst,
@@ -459,6 +463,7 @@ var ExtensionToTypeDict = map[string]Type{
 	"mef":           MEF,
 	"mefd.gz":       MEF3,
 	"edf":           EDF,
+	"bdf":           BDF,
 	"tdm":           TDMS,
 	"tdms":          TDMS,
 	"lay":           Persyst,
