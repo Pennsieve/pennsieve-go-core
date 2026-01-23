@@ -1,7 +1,7 @@
 package changelog
 
 import (
-	"bytes"
+	"fmt"
 	"time"
 )
 
@@ -14,24 +14,42 @@ const (
 	RestorePackage
 )
 
-func (s Type) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString(`"`)
-	buffer.WriteString(s.String())
-	buffer.WriteString(`"`)
-	return buffer.Bytes(), nil
+const (
+	createPackageString  = "CREATE_PACKAGE"
+	deletePackageString  = "DELETE_PACKAGE"
+	restorePackageString = "RESTORE_PACKAGE"
+	unknownTypeString    = "UNKNOWN"
+)
+
+func (s Type) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+func (s *Type) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case createPackageString:
+		*s = CreatePackage
+	case deletePackageString:
+		*s = DeletePackage
+	case restorePackageString:
+		*s = RestorePackage
+	default:
+		return fmt.Errorf("unknown changelog type: %s", text)
+	}
+	return nil
 }
 
 func (s Type) String() string {
 	switch s {
 	case CreatePackage:
-		return "CREATE_PACKAGE"
+		return createPackageString
 	case DeletePackage:
-		return "DELETE_PACKAGE"
+		return deletePackageString
 	case RestorePackage:
-		return "RESTORE_PACKAGE"
+		return restorePackageString
 	}
 
-	return "UNKNOWN"
+	return unknownTypeString
 }
 
 type MessageParams struct {

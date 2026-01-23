@@ -50,7 +50,7 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at) VALUES "
 
 	returnRows := "id, package_id, name, file_type, s3_bucket, s3_key, " +
-		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at"
+		"object_type, size, checksum, uuid, processing_state, uploaded_state, created_at, updated_at, published"
 
 	sqlInsert = sqlInsert +
 		strings.Join(inserts, ",") +
@@ -99,6 +99,7 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 			&uState,
 			&currentRecord.CreatedAt,
 			&currentRecord.UpdatedAt,
+			&currentRecord.Published,
 		)
 
 		if err != nil {
