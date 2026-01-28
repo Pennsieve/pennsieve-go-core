@@ -24,6 +24,7 @@ type File struct {
 	UploadedState   uploadState.UploadedState       `json:"uploaded_state"`
 	CreatedAt       time.Time                       `json:"created_at"`
 	UpdatedAt       time.Time                       `json:"updated_at"`
+	Published       bool                            `json:"published"`
 }
 
 type FileParams struct {

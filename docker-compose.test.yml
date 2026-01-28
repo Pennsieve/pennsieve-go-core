@@ -58,7 +58,7 @@ services:
       - core-tests
 
   pennsievedb:
-    image: pennsieve/pennsievedb:V20241024144839-seed
+    image: pennsieve/pennsievedb:V20260112110611-seed
     restart: always
     ports:
       - "5432:5432"
@@ -66,7 +66,7 @@ services:
       - core-tests
 
   pennsievedb-ci:
-    image: pennsieve/pennsievedb:V20241024144839-seed
+    image: pennsieve/pennsievedb:V20260112110611-seed
     restart: always
     networks:
       - core-tests
