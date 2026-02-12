@@ -337,7 +337,7 @@ func datasetRoleToPermission(r role.Role) pgdb.DbPermission {
 func (q *Queries) getDataset(ctx context.Context, predicate string) (*pgdb.Dataset, error) {
 	query := fmt.Sprintf("SELECT id, name, state, description, updated_at, created_at, node_id,"+
 		" permission_bit, type, role, status, automatically_process_packages, license, tags, contributors,"+
-		" banner_id, readme_id, status_id, publication_status_id, size, etag, data_use_agreement_id, changelog_id"+
+		" banner_id, readme_id, status_id, size, etag, data_use_agreement_id, changelog_id"+
 		" FROM datasets WHERE %s;", predicate)
 	row := q.db.QueryRowContext(ctx, query)
 	return scanDataset(row)
@@ -365,7 +365,6 @@ func scanDataset(row *sql.Row) (*pgdb.Dataset, error) {
 		&dataset.BannerId,
 		&dataset.ReadmeId,
 		&dataset.StatusId,
-		&dataset.PublicationStatusId,
 		&dataset.Size,
 		&dataset.ETag,
 		&dataset.DataUseAgreementId,
