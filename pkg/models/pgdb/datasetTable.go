@@ -49,7 +49,6 @@ type Dataset struct {
 	BannerId                     uuid.UUID      `json:"banner_id"`
 	ReadmeId                     uuid.UUID      `json:"readme_id"`
 	StatusId                     int32          `json:"status_id"`
-	PublicationStatusId          sql.NullInt32  `json:"publication_status_id"`
 	Size                         sql.NullInt64  `json:"size"`
 	ETag                         time.Time      `json:"etag"`
 	DataUseAgreementId           sql.NullInt32  `json:"data_use_agreement_id"`
