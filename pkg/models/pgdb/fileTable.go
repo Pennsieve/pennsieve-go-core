@@ -51,3 +51,9 @@ type ErrMultipleRowsAffected struct{}
 func (m *ErrMultipleRowsAffected) Error() string {
 	return "Multiple files in files table were updated"
 }
+
+type ErrFileAlreadyPublished struct{}
+
+func (m *ErrFileAlreadyPublished) Error() string {
+	return "File is already published, skipping bucket update"
+}

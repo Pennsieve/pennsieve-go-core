@@ -118,10 +118,23 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 	return allInsertedFiles, nil
 }
 
-// UpdateBucketForFile updates the storage bucket as part of upload process and sets Status
+// IsFilePublished checks whether a file identified by its UUID has been published.
+func (q *Queries) IsFilePublished(ctx context.Context, uploadId string, organizationId int64) (bool, error) {
+	queryStr := fmt.Sprintf("SELECT published FROM \"%d\".files WHERE UUID=$1;", organizationId)
+	var published bool
+	err := q.db.QueryRowContext(ctx, queryStr, uploadId).Scan(&published)
+	if err != nil {
+		return false, fmt.Errorf("error checking published status for file %s: %w", uploadId, err)
+	}
+	return published, nil
+}
+
+// UpdateBucketForFile updates the storage bucket as part of upload process.
+// Only updates files that have not been published. If the file has been published
+// (e.g. by a publish operation), the update is skipped and ErrFileAlreadyPublished is returned.
 func (q *Queries) UpdateBucketForFile(ctx context.Context, uploadId string, bucket string, s3Key string, organizationId int64) error {
 
-	queryStr := fmt.Sprintf("UPDATE \"%d\".files SET s3_bucket=$1, s3_key=$2 WHERE UUID=$3;", organizationId)
+	queryStr := fmt.Sprintf("UPDATE \"%d\".files SET s3_bucket=$1, s3_key=$2 WHERE UUID=$3 AND published = false;", organizationId)
 	result, err := q.db.ExecContext(ctx, queryStr, bucket, s3Key, uploadId)
 
 	msg := ""
@@ -137,9 +150,14 @@ func (q *Queries) UpdateBucketForFile(ctx context.Context, uploadId string, buck
 	}
 	if affectedRows != 1 {
 		if affectedRows == 0 {
-			nofFoundError := &pgdb.ErrFileNotFound{}
-			log.Println(nofFoundError.Error())
-			return nofFoundError
+			// Check if the file exists and is published
+			var published bool
+			checkQuery := fmt.Sprintf("SELECT published FROM \"%d\".files WHERE UUID=$1;", organizationId)
+			row := q.db.QueryRowContext(ctx, checkQuery, uploadId)
+			if scanErr := row.Scan(&published); scanErr == nil && published {
+				return &pgdb.ErrFileAlreadyPublished{}
+			}
+			return &pgdb.ErrFileNotFound{}
 		}
 
 		multipleRowError := &pgdb.ErrMultipleRowsAffected{}
