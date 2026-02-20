@@ -130,13 +130,15 @@ func (q *Queries) IsFilePublished(ctx context.Context, uploadId string, organiza
 }
 
 // UpdateBucketForFile updates the storage bucket as part of upload process.
-// Only updates files that have not been published (WHERE published = false).
-// Returns ErrFileNotFound if 0 rows are affected (file missing or already published).
 func (q *Queries) UpdateBucketForFile(ctx context.Context, uploadId string, bucket string, s3Key string, organizationId int64) error {
-	queryStr := fmt.Sprintf("UPDATE \"%d\".files SET s3_bucket=$1, s3_key=$2 WHERE UUID=$3 AND published = false;", organizationId)
+
+	queryStr := fmt.Sprintf("UPDATE \"%d\".files SET s3_bucket=$1, s3_key=$2 WHERE UUID=$3;", organizationId)
 	result, err := q.db.ExecContext(ctx, queryStr, bucket, s3Key, uploadId)
+
+	msg := ""
 	if err != nil {
-		log.Printf("Error updating the bucket location: %v", err)
+		msg = fmt.Sprintf("Error updating the bucket location: %v", err)
+		log.Println(msg)
 		return err
 	}
 
@@ -148,9 +150,12 @@ func (q *Queries) UpdateBucketForFile(ctx context.Context, uploadId string, buck
 		if affectedRows == 0 {
 			return &pgdb.ErrFileNotFound{}
 		}
+
 		multipleRowError := &pgdb.ErrMultipleRowsAffected{}
 		log.Println(multipleRowError.Error())
 		return multipleRowError
 	}
+
 	return nil
+
 }
