@@ -14,6 +14,7 @@ type SQLStore struct {
 
 // NewSQLStore returns a SQLStore object which implements the Queries
 func NewSQLStore(db *sql.DB) *SQLStore {
+
 	return &SQLStore{
 		db:      db,
 		Queries: New(db),
