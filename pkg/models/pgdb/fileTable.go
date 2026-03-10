@@ -10,34 +10,40 @@ import (
 )
 
 type File struct {
-	Id              string                          `json:"id"`
-	PackageId       int                             `json:"package_id"`
-	Name            string                          `json:"name"`
-	FileType        fileType.Type                   `json:"file_type"`
-	S3Bucket        string                          `json:"s3_bucket"`
-	S3Key           string                          `json:"s3_key"`
-	ObjectType      objectType.ObjectType           `json:"object_type"`
-	Size            int64                           `json:"size"`
-	CheckSum        string                          `json:"checksum"`
-	UUID            uuid.UUID                       `json:"uuid"`
-	ProcessingState processingState.ProcessingState `json:"processing_state"`
-	UploadedState   uploadState.UploadedState       `json:"uploaded_state"`
-	CreatedAt       time.Time                       `json:"created_at"`
-	UpdatedAt       time.Time                       `json:"updated_at"`
-	Published       bool                            `json:"published"`
+	Id                   string                          `json:"id"`
+	PackageId            int                             `json:"package_id"`
+	Name                 string                          `json:"name"`
+	FileType             fileType.Type                   `json:"file_type"`
+	S3Bucket             string                          `json:"s3_bucket"`
+	S3Key                string                          `json:"s3_key"`
+	ObjectType           objectType.ObjectType           `json:"object_type"`
+	Size                 int64                           `json:"size"`
+	CheckSum             string                          `json:"checksum"`
+	UUID                 uuid.UUID                       `json:"uuid"`
+	ProcessingState      processingState.ProcessingState `json:"processing_state"`
+	UploadedState        uploadState.UploadedState       `json:"uploaded_state"`
+	Properties           map[string]interface{}          `json:"properties"`
+	AssetType            string                          `json:"asset_type"`
+	ProvenanceId         uuid.UUID                       `json:"provenance_id"`
+	CreatedAt            time.Time                       `json:"created_at"`
+	UpdatedAt            time.Time                       `json:"updated_at"`
+	PublishedS3VersionId *string                         `json:"published_s3_version_id"`
 }
 
 type FileParams struct {
-	PackageId  int                   `json:"package_id"`
-	Name       string                `json:"name"`
-	FileType   fileType.Type         `json:"file_type"`
-	S3Bucket   string                `json:"s3_bucket"`
-	S3Key      string                `json:"s3_key"`
-	ObjectType objectType.ObjectType `json:"object_type"`
-	Size       int64                 `json:"size"`
-	CheckSum   string                `json:"checksum"`
-	Sha256     string                `json:"sha256"`
-	UUID       uuid.UUID             `json:"uuid"`
+	PackageId    int                    `json:"package_id"`
+	Name         string                 `json:"name"`
+	FileType     fileType.Type          `json:"file_type"`
+	S3Bucket     string                 `json:"s3_bucket"`
+	S3Key        string                 `json:"s3_key"`
+	ObjectType   objectType.ObjectType  `json:"object_type"`
+	Size         int64                  `json:"size"`
+	CheckSum     string                 `json:"checksum"`
+	Sha256       string                 `json:"sha256"`
+	UUID         uuid.UUID              `json:"uuid"`
+	Properties   map[string]interface{} `json:"properties"`
+	AssetType    string                 `json:"asset_type"`
+	ProvenanceId uuid.UUID              `json:"provenance_id"`
 }
 
 type ErrFileNotFound struct{}
