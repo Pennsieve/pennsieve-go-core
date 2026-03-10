@@ -22,9 +22,9 @@ type File struct {
 	UUID                 uuid.UUID                       `json:"uuid"`
 	ProcessingState      processingState.ProcessingState `json:"processing_state"`
 	UploadedState        uploadState.UploadedState       `json:"uploaded_state"`
-	Properties      map[string]interface{}          `json:"properties"`
-	AssetType       string                          `json:"asset_type"`
-	ProvenanceId    uuid.UUID                       `json:"provenance_id"`
+	Properties           map[string]interface{}          `json:"properties"`
+	AssetType            string                          `json:"asset_type"`
+	ProvenanceId         uuid.UUID                       `json:"provenance_id"`
 	CreatedAt            time.Time                       `json:"created_at"`
 	UpdatedAt            time.Time                       `json:"updated_at"`
 	PublishedS3VersionId *string                         `json:"published_s3_version_id"`
