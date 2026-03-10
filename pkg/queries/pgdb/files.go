@@ -117,15 +117,51 @@ func (q *Queries) AddFiles(ctx context.Context, files []pgdb.FileParams) ([]pgdb
 	return allInsertedFiles, nil
 }
 
-// IsFilePublished checks whether a file identified by its UUID has been published.
+// IsFilePublished checks whether a file identified by its UUID has been published
+// by looking for a non-null published_s3_version_id.
 func (q *Queries) IsFilePublished(ctx context.Context, uploadId string, organizationId int64) (bool, error) {
-	queryStr := fmt.Sprintf("SELECT published FROM \"%d\".files WHERE UUID=$1;", organizationId)
+	queryStr := fmt.Sprintf("SELECT published_s3_version_id IS NOT NULL FROM \"%d\".files WHERE UUID=$1;", organizationId)
 	var published bool
 	err := q.db.QueryRowContext(ctx, queryStr, uploadId).Scan(&published)
 	if err != nil {
 		return false, fmt.Errorf("error checking published status for file %s: %w", uploadId, err)
 	}
 	return published, nil
+}
+
+// UpdateBucketForUnpublishedFile updates the storage bucket for a file, but only if
+// the file has not been published (published_s3_version_id IS NULL). This prevents
+// the upload-move workflow from overwriting a publish-bucket location in the DB.
+// Returns ErrFileNotFound if the file does not exist.
+// Returns ErrFileAlreadyPublished if the file was published (0 rows affected due to the guard).
+func (q *Queries) UpdateBucketForUnpublishedFile(ctx context.Context, uploadId string, bucket string, s3Key string, organizationId int64) error {
+	queryStr := fmt.Sprintf("UPDATE \"%d\".files SET s3_bucket=$1, s3_key=$2 WHERE UUID=$3 AND published_s3_version_id IS NULL;", organizationId)
+	result, err := q.db.ExecContext(ctx, queryStr, bucket, s3Key, uploadId)
+	if err != nil {
+		log.Printf("Error updating the bucket location: %v", err)
+		return err
+	}
+
+	affectedRows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affectedRows == 0 {
+		// Distinguish between "file doesn't exist" and "file is published" by checking if the file exists.
+		var exists bool
+		existsQuery := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM \"%d\".files WHERE UUID=$1);", organizationId)
+		if err := q.db.QueryRowContext(ctx, existsQuery, uploadId).Scan(&exists); err != nil {
+			return fmt.Errorf("error checking file existence: %w", err)
+		}
+		if exists {
+			return &pgdb.ErrFileAlreadyPublished{}
+		}
+		return &pgdb.ErrFileNotFound{}
+	}
+	if affectedRows > 1 {
+		return &pgdb.ErrMultipleRowsAffected{}
+	}
+	return nil
 }
 
 // UpdateBucketForFile updates the storage bucket as part of upload process.
