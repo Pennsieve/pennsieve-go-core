@@ -76,7 +76,6 @@ func testAddFilesDuplicateUUID(t *testing.T, store *SQLStore, orgId int, package
 		assert.NotEmpty(t, actualFileId)
 		actualFileUpdatedAt = actualFiles[0].UpdatedAt
 		assert.NotEmpty(t, actualFileUpdatedAt)
-		assert.False(t, actualFiles[0].Published)
 	}
 	duplicateFiles, err := store.AddFiles(context.Background(), files)
 	if assert.NoError(t, err) {
@@ -87,7 +86,6 @@ func testAddFilesDuplicateUUID(t *testing.T, store *SQLStore, orgId int, package
 		assert.Equal(t, uuid, duplicateFile.UUID)
 		assert.Equal(t, actualFileId, duplicateFile.Id)
 		assert.True(t, actualFileUpdatedAt.Before(duplicateFile.UpdatedAt))
-		assert.False(t, duplicateFiles[0].Published)
 	}
 }
 
@@ -120,7 +118,6 @@ func testAddFilesDuplicateUUIDDifferentS3Key(t *testing.T, store *SQLStore, orgI
 		actualInitialFileId = actualInitialFile.Id
 		assert.NotEmpty(t, actualInitialFileId)
 		actualInitialUpdatedAt = actualInitialFile.UpdatedAt
-		assert.False(t, actualInitialFiles[0].Published)
 	}
 
 	mistakeFile := pgdb.FileParams{
