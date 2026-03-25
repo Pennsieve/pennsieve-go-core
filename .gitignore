@@ -16,3 +16,4 @@
 
 # Test data
 /test-dynamodb-data/
+.DS_Store
