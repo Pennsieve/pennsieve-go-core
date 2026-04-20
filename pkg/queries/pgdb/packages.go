@@ -128,8 +128,6 @@ func (q *Queries) AddPackagesWithConflict(ctx context.Context, records []pgdb.Pa
 			inserted, err = q.addPackagesKeepBoth(ctx, parentId, pRecords)
 		case conflictStrategy.Replace:
 			inserted, err = q.addPackagesReplace(ctx, parentId, pRecords)
-		case conflictStrategy.Fail:
-			inserted, err = q.addPackagesFail(ctx, parentId, pRecords)
 		default:
 			return nil, fmt.Errorf("unknown conflict strategy: %s", strategy)
 		}
@@ -251,37 +249,6 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 		}
 	}
 
-	return inserted, nil
-}
-
-// addPackagesFail returns an error if any record name collides with an
-// existing non-deleted package under the same parent; otherwise inserts
-// straight through without the rename-retry loop.
-func (q *Queries) addPackagesFail(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
-	conflicts, err := q.findConflictingPackages(ctx, parentId, records)
-	if err != nil {
-		return nil, err
-	}
-	if len(conflicts) > 0 {
-		names := make([]string, 0, len(conflicts))
-		for n := range conflicts {
-			names = append(names, n)
-		}
-		return nil, fmt.Errorf("conflict strategy FAIL: %d conflicting name(s): %v", len(names), names)
-	}
-
-	inserted, failed, err := q.addPackageByParent(ctx, parentId, records, nil)
-	if err != nil {
-		return nil, err
-	}
-	if len(failed) > 0 {
-		// Post-check failed (race with another insert). Surface the names.
-		failedNames := make([]string, 0, len(failed))
-		for _, f := range failed {
-			failedNames = append(failedNames, f.Name)
-		}
-		return nil, fmt.Errorf("conflict strategy FAIL: %d insert failure(s) after conflict check: %v", len(failed), failedNames)
-	}
 	return inserted, nil
 }
 

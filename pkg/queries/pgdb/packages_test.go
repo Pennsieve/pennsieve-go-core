@@ -28,7 +28,6 @@ func TestPackageTable(t *testing.T) {
 		"Test name expansion":            testNameExpansion,
 		"Test getting ancestor Ids":      testGettingAncestors,
 		"Test conflict replace":          testConflictReplace,
-		"Test conflict fail":             testConflictFail,
 		"Test conflict replace no-op":    testConflictReplaceNoConflict,
 	} {
 		t.Run(scenario, func(t *testing.T) {
@@ -677,44 +676,6 @@ func testConflictReplace(t *testing.T, store *SQLStore, orgId int) {
 	datasetStorage, err := store.Queries.GetDatasetStorageById(context.Background(), datasetId)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), datasetStorage, "Dataset storage should decrement to 0")
-}
-
-// testConflictFail verifies the Fail strategy rejects conflicting inserts
-// without touching the database, and inserts cleanly when no conflict exists.
-func testConflictFail(t *testing.T, store *SQLStore, orgId int) {
-	defer test.Truncate(t, store.db, orgId, "packages")
-
-	// Seed: package at root.
-	seed := test.GenerateTestPackages([]test.PackageParams{
-		{Name: "data.bin", ParentId: -1},
-	}, 1)
-	_, err := store.AddPackagesWithConflict(context.Background(), seed, conflictStrategy.KeepBoth)
-	assert.NoError(t, err)
-
-	// Fail strategy with a conflict should error and insert nothing.
-	conflict := test.GenerateTestPackages([]test.PackageParams{
-		{Name: "data.bin", ParentId: -1},
-		{Name: "fresh.bin", ParentId: -1},
-	}, 1)
-	result, err := store.AddPackagesWithConflict(context.Background(), conflict, conflictStrategy.Fail)
-	assert.Error(t, err, "Fail strategy should error on conflict")
-	assert.Nil(t, result, "No packages should be returned on conflict")
-
-	// Confirm fresh.bin was NOT inserted (atomicity — all-or-nothing).
-	var count int
-	countStmt := fmt.Sprintf("SELECT COUNT(*) FROM \"%d\".packages WHERE name='fresh.bin'", orgId)
-	assert.NoError(t, store.db.QueryRow(countStmt).Scan(&count))
-	assert.Equal(t, 0, count, "No non-conflicting records should be inserted when Fail aborts")
-
-	// Fail strategy with no conflict should succeed.
-	clean := test.GenerateTestPackages([]test.PackageParams{
-		{Name: "brand_new.bin", ParentId: -1},
-	}, 1)
-	result, err = store.AddPackagesWithConflict(context.Background(), clean, conflictStrategy.Fail)
-	assert.NoError(t, err)
-	assert.Len(t, result, 1)
-	assert.Equal(t, "brand_new.bin", result[0].Name)
-	assert.False(t, result[0].ReplacesPackageId.Valid, "Non-replace insert should have null replaces_package_id")
 }
 
 // testConflictReplaceNoConflict verifies the Replace strategy inserts

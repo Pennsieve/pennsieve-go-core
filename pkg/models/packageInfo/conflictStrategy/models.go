@@ -16,8 +16,4 @@ const (
 	// replaced_by_package_id. Folders (Collection type) cannot be replaced
 	// — the DB CHECK constraint enforces this.
 	Replace Strategy = "REPLACE"
-
-	// Fail returns an error listing the conflicting names without inserting
-	// anything. Lets the caller resolve the conflict out-of-band.
-	Fail Strategy = "FAIL"
 )
