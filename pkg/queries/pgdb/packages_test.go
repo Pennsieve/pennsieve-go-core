@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/conflictStrategy"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
@@ -26,6 +27,9 @@ func TestPackageTable(t *testing.T) {
 		"Test adding nested packages":    testAddingNestedPackages,
 		"Test name expansion":            testNameExpansion,
 		"Test getting ancestor Ids":      testGettingAncestors,
+		"Test conflict replace":          testConflictReplace,
+		"Test conflict fail":             testConflictFail,
+		"Test conflict replace no-op":    testConflictReplaceNoConflict,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -270,7 +274,7 @@ func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {
 	}
 
 	insertParams := test.GenerateTestPackages(testParams, 1)
-	results, failedPackages, err := store.Queries.addPackageByParent(context.Background(), -1, insertParams)
+	results, failedPackages, err := store.Queries.addPackageByParent(context.Background(), -1, insertParams, nil)
 	assert.Empty(t, failedPackages, "All packages should be inserted correctly.")
 	assert.NoError(t, err)
 	assert.Len(t, results, 5, "Expect to return 5 packages")
@@ -280,7 +284,7 @@ func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {
 		{Name: "package_1.txt", ParentId: -1}}
 
 	insertParams = test.GenerateTestPackages(testParams, 1)
-	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
+	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams, nil)
 	assert.NoError(t, err)
 	assert.Len(t, results, 0, "Expect to not insert package as there is a conflict.")
 	assert.Len(t, failedPackages, 1)
@@ -288,7 +292,7 @@ func testAddingPackagesToRoot(t *testing.T, store *SQLStore, orgId int) {
 
 	// Test inserting package with same name to different dataset
 	insertParams = test.GenerateTestPackages(testParams, 2)
-	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
+	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams, nil)
 	assert.NoError(t, err)
 	assert.Len(t, results, 1, "Expect to insert package in dataset 2.")
 	assert.Len(t, failedPackages, 0)
@@ -344,7 +348,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 	}
 
 	insertParams := test.GenerateTestPackages(testParams, 1)
-	results, failedPackages, err := store.Queries.addPackageByParent(context.Background(), result.Id, insertParams)
+	results, failedPackages, err := store.Queries.addPackageByParent(context.Background(), result.Id, insertParams, nil)
 	assert.Empty(t, failedPackages, "All packages should be inserted correctly.")
 	assert.NoError(t, err)
 	assert.Len(t, results, 5, "Expect to return 5 packages")
@@ -354,7 +358,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 		{Name: "package_6.txt", ParentId: result.Id},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
-	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
+	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams, nil)
 	assert.Error(t, err, "Should return an error when parent_id in call does not match parent_id in params.")
 	assert.Nil(t, results)
 	assert.Nil(t, failedPackages)
@@ -365,7 +369,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 		{Name: "package_2.txt", ParentId: -1},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
-	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), result.Id, insertParams)
+	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), result.Id, insertParams, nil)
 	assert.Error(t, err, "Should return an error when parent_id in call does not match parent_id in params.")
 	assert.Nil(t, results)
 	assert.Nil(t, failedPackages)
@@ -375,7 +379,7 @@ func testAddingNestedPackages(t *testing.T, store *SQLStore, orgId int) {
 		{Name: "package_1.txt", ParentId: result.Id},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
-	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), result.Id, insertParams)
+	results, failedPackages, err = store.Queries.addPackageByParent(context.Background(), result.Id, insertParams, nil)
 	assert.NoError(t, err)
 	assert.Len(t, results, 0, "Expect to not insert package as there is a naming conflict.")
 	assert.Len(t, failedPackages, 1, "Expect package to fail.")
@@ -587,7 +591,7 @@ func testGettingAncestors(t *testing.T, store *SQLStore, orgId int) {
 		{Name: "package_1.txt", ParentId: folder2.Id},
 	}
 	insertParams := test.GenerateTestPackages(testParams, 1)
-	results, _, err := store.Queries.addPackageByParent(context.Background(), folder2.Id, insertParams)
+	results, _, err := store.Queries.addPackageByParent(context.Background(), folder2.Id, insertParams, nil)
 	assert.NoError(t, err)
 
 	ancestorIds, err := store.Queries.GetPackageAncestorIds(context.Background(), results[0].Id)
@@ -602,7 +606,7 @@ func testGettingAncestors(t *testing.T, store *SQLStore, orgId int) {
 		{Name: "package_root.txt", ParentId: -1},
 	}
 	insertParams = test.GenerateTestPackages(testParams, 1)
-	results, _, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams)
+	results, _, err = store.Queries.addPackageByParent(context.Background(), -1, insertParams, nil)
 	assert.NoError(t, err)
 
 	ancestorIds, err = store.Queries.GetPackageAncestorIds(context.Background(), results[0].Id)
@@ -610,4 +614,121 @@ func testGettingAncestors(t *testing.T, store *SQLStore, orgId int) {
 	assert.Len(t, ancestorIds, 1)
 	assert.Equal(t, ancestorIds[0], results[0].Id, "Expecting first value to be the current package id")
 
+}
+
+// testConflictReplace verifies the Replace strategy soft-deletes the
+// predecessor, inserts the new package with the back-reference populated,
+// sets replaced_by_package_id on the predecessor, and decrements the
+// predecessor's storage counts (package + dataset) to match
+// pennsieve-api's PackageManager.delete behavior.
+func testConflictReplace(t *testing.T, store *SQLStore, orgId int) {
+	defer test.Truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "package_storage")
+	defer test.Truncate(t, store.db, orgId, "dataset_storage")
+
+	datasetId := int64(1)
+
+	// Seed: a single package at root.
+	original := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "report.csv", ParentId: -1},
+	}, int(datasetId))
+	originalResult, err := store.AddPackagesWithConflict(context.Background(), original, conflictStrategy.KeepBoth)
+	assert.NoError(t, err)
+	assert.Len(t, originalResult, 1)
+	originalId := originalResult[0].Id
+
+	// Seed storage rows so we can verify decrement.
+	const predecessorSize = int64(1000)
+	assert.NoError(t, store.Queries.IncrementPackageStorage(context.Background(), originalId, predecessorSize))
+	assert.NoError(t, store.Queries.IncrementDatasetStorage(context.Background(), datasetId, predecessorSize))
+
+	// Replace: upload a new package with the same name.
+	replacement := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "report.csv", ParentId: -1},
+	}, int(datasetId))
+	replacementResult, err := store.AddPackagesWithConflict(context.Background(), replacement, conflictStrategy.Replace)
+	assert.NoError(t, err)
+	assert.Len(t, replacementResult, 1)
+
+	newPkg := replacementResult[0]
+	assert.Equal(t, "report.csv", newPkg.Name, "New package keeps the original requested name")
+	assert.NotEqual(t, originalId, newPkg.Id, "Replacement should be a new row")
+	assert.True(t, newPkg.ReplacesPackageId.Valid, "replaces_package_id should be set")
+	assert.Equal(t, originalId, newPkg.ReplacesPackageId.Int64, "replaces_package_id should point at the predecessor")
+
+	// Predecessor should be state=DELETING, name prefixed, and back-referenced.
+	selectStmt := fmt.Sprintf(
+		"SELECT name, state, replaced_by_package_id FROM \"%d\".packages WHERE id=$1",
+		orgId)
+	var predecessorName, predecessorState string
+	var predecessorReplacedBy sql.NullInt64
+	err = store.db.QueryRow(selectStmt, originalId).Scan(&predecessorName, &predecessorState, &predecessorReplacedBy)
+	assert.NoError(t, err)
+	assert.Equal(t, packageState.Deleting.String(), predecessorState, "Predecessor should be in DELETING state")
+	assert.Contains(t, predecessorName, "__DELETED__", "Predecessor should be renamed with __DELETED__ prefix")
+	assert.True(t, predecessorReplacedBy.Valid, "replaced_by_package_id should be set")
+	assert.Equal(t, newPkg.Id, predecessorReplacedBy.Int64, "Predecessor's replaced_by_package_id should point at the new row")
+
+	// Storage counts on the predecessor and dataset should be decremented to 0.
+	predecessorStorage, err := store.Queries.GetPackageStorageById(context.Background(), originalId)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), predecessorStorage, "Predecessor package_storage should decrement to 0")
+
+	datasetStorage, err := store.Queries.GetDatasetStorageById(context.Background(), datasetId)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), datasetStorage, "Dataset storage should decrement to 0")
+}
+
+// testConflictFail verifies the Fail strategy rejects conflicting inserts
+// without touching the database, and inserts cleanly when no conflict exists.
+func testConflictFail(t *testing.T, store *SQLStore, orgId int) {
+	defer test.Truncate(t, store.db, orgId, "packages")
+
+	// Seed: package at root.
+	seed := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "data.bin", ParentId: -1},
+	}, 1)
+	_, err := store.AddPackagesWithConflict(context.Background(), seed, conflictStrategy.KeepBoth)
+	assert.NoError(t, err)
+
+	// Fail strategy with a conflict should error and insert nothing.
+	conflict := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "data.bin", ParentId: -1},
+		{Name: "fresh.bin", ParentId: -1},
+	}, 1)
+	result, err := store.AddPackagesWithConflict(context.Background(), conflict, conflictStrategy.Fail)
+	assert.Error(t, err, "Fail strategy should error on conflict")
+	assert.Nil(t, result, "No packages should be returned on conflict")
+
+	// Confirm fresh.bin was NOT inserted (atomicity — all-or-nothing).
+	var count int
+	countStmt := fmt.Sprintf("SELECT COUNT(*) FROM \"%d\".packages WHERE name='fresh.bin'", orgId)
+	assert.NoError(t, store.db.QueryRow(countStmt).Scan(&count))
+	assert.Equal(t, 0, count, "No non-conflicting records should be inserted when Fail aborts")
+
+	// Fail strategy with no conflict should succeed.
+	clean := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "brand_new.bin", ParentId: -1},
+	}, 1)
+	result, err = store.AddPackagesWithConflict(context.Background(), clean, conflictStrategy.Fail)
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "brand_new.bin", result[0].Name)
+	assert.False(t, result[0].ReplacesPackageId.Valid, "Non-replace insert should have null replaces_package_id")
+}
+
+// testConflictReplaceNoConflict verifies the Replace strategy inserts
+// cleanly (no predecessor rename, no back-reference) when no conflict exists.
+func testConflictReplaceNoConflict(t *testing.T, store *SQLStore, orgId int) {
+	defer test.Truncate(t, store.db, orgId, "packages")
+
+	fresh := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "solo.txt", ParentId: -1},
+	}, 1)
+	result, err := store.AddPackagesWithConflict(context.Background(), fresh, conflictStrategy.Replace)
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "solo.txt", result[0].Name)
+	assert.False(t, result[0].ReplacesPackageId.Valid, "No conflict = no replaces_package_id")
+	assert.False(t, result[0].ReplacedByPackageId.Valid, "Fresh insert should have null replaced_by_package_id")
 }

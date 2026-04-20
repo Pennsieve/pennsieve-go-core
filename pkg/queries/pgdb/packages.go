@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/lib/pq"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/conflictStrategy"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
@@ -86,12 +87,26 @@ func (q *Queries) AddFolder(ctx context.Context, r pgdb.PackageParams) (*pgdb.Pa
 
 }
 
-// AddPackages adds packages to a dataset.
+// AddPackages adds packages to a dataset with the legacy "keep both" conflict
+// behavior: name collisions result in the new package being renamed with a
+// " (N)" suffix until it lands. Equivalent to AddPackagesWithConflict using
+// conflictStrategy.KeepBoth.
 //   - This call should typically be wrapped in a Transaction as it will run multiple queries.
 //   - Packages can be in different folders, but it is assumed that the folders already exist.
 func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams) ([]pgdb.Package, error) {
-	var allInsertedPackages []pgdb.Package
+	return q.AddPackagesWithConflict(ctx, records, conflictStrategy.KeepBoth)
+}
 
+// AddPackagesWithConflict adds packages, using the given strategy to resolve
+// name collisions with existing non-deleted packages under the same
+// (dataset_id, parent_id, name) tuple.
+//   - This call should typically be wrapped in a Transaction as it will run multiple queries.
+//   - Collection-type records are rejected; use AddFolder instead.
+//   - Replace soft-deletes the conflicting predecessor (state=DELETING, name
+//     prefixed with __DELETED__<nodeId>_) and links the new package via
+//     replaces_package_id / replaced_by_package_id.
+//   - Fail returns an error listing conflicting names without inserting anything.
+func (q *Queries) AddPackagesWithConflict(ctx context.Context, records []pgdb.PackageParams, strategy conflictStrategy.Strategy) ([]pgdb.Package, error) {
 	for _, r := range records {
 		if r.PackageType == packageType.Collection {
 			return nil, errors.New("cannot create COLLECTION package with AddPackages method, use AddFolder instead")
@@ -104,41 +119,215 @@ func (q *Queries) AddPackages(ctx context.Context, records []pgdb.PackageParams)
 		parentIdMap[r.ParentId] = append(parentIdMap[r.ParentId], r)
 	}
 
+	var allInsertedPackages []pgdb.Package
 	for parentId, pRecords := range parentIdMap {
-		insertedPackages, failedPackages, err := q.addPackageByParent(ctx, parentId, pRecords)
+		var inserted []pgdb.Package
+		var err error
+		switch strategy {
+		case conflictStrategy.KeepBoth:
+			inserted, err = q.addPackagesKeepBoth(ctx, parentId, pRecords)
+		case conflictStrategy.Replace:
+			inserted, err = q.addPackagesReplace(ctx, parentId, pRecords)
+		case conflictStrategy.Fail:
+			inserted, err = q.addPackagesFail(ctx, parentId, pRecords)
+		default:
+			return nil, fmt.Errorf("unknown conflict strategy: %s", strategy)
+		}
+		if err != nil {
+			return nil, err
+		}
+		allInsertedPackages = append(allInsertedPackages, inserted...)
+	}
+	return allInsertedPackages, nil
+}
+
+// addPackagesKeepBoth retries with " (N)"-suffixed names until all records
+// are inserted.
+func (q *Queries) addPackagesKeepBoth(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
+	var allInsertedPackages []pgdb.Package
+
+	insertedPackages, failedPackages, err := q.addPackageByParent(ctx, parentId, records, nil)
+	if err != nil {
+		return nil, err
+	}
+	allInsertedPackages = append(allInsertedPackages, insertedPackages...)
+
+	failedNameMap := map[string]string{}
+	for _, p := range failedPackages {
+		failedNameMap[p.Name] = p.Name
+	}
+
+	index := 1
+	for len(failedPackages) > 0 {
+		for i := range failedPackages {
+			originalName := failedNameMap[failedPackages[i].Name]
+			expandName(&failedPackages[i], originalName, index)
+			failedNameMap[failedPackages[i].Name] = originalName
+		}
+
+		insertedPackages, failedPackages, err = q.addPackageByParent(ctx, parentId, failedPackages, nil)
 		if err != nil {
 			return nil, err
 		}
 
 		allInsertedPackages = append(allInsertedPackages, insertedPackages...)
 
-		// Update name of failed packages and re-insert.
-		failedNameMap := map[string]string{}
-		for _, p := range failedPackages {
-			failedNameMap[p.Name] = p.Name
-		}
-
-		index := 1
-		for len(failedPackages) > 0 {
-			for i := range failedPackages {
-
-				originalName := failedNameMap[failedPackages[i].Name]
-				expandName(&failedPackages[i], originalName, index)
-				failedNameMap[failedPackages[i].Name] = originalName
-			}
-
-			insertedPackages, failedPackages, err = q.addPackageByParent(ctx, parentId, failedPackages)
-			if err != nil {
-				return nil, err
-			}
-
-			allInsertedPackages = append(allInsertedPackages, insertedPackages...)
-
-			index++
-		}
+		index++
 	}
 	return allInsertedPackages, nil
+}
 
+// addPackagesReplace soft-deletes each conflicting predecessor, decrements
+// its storage counts, inserts the new packages with replaces_package_id set,
+// then writes the back-reference. Async S3 asset cleanup is the caller's
+// responsibility (publish a DeletePackageJob to the jobs queue for each
+// returned package with ReplacesPackageId set).
+// Caller must ensure the call runs in a transaction for atomicity.
+func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
+	conflicts, err := q.findConflictingPackages(ctx, parentId, records)
+	if err != nil {
+		return nil, err
+	}
+
+	replacementByNodeId := map[string]int64{}
+	for _, r := range records {
+		if old, ok := conflicts[r.Name]; ok {
+			replacementByNodeId[r.NodeId] = old.Id
+		}
+	}
+
+	datasetId := int64(records[0].DatasetId)
+
+	// Rename + soft-delete each predecessor so the new insert doesn't trip
+	// the unique (name, dataset_id, parent_id) partial indexes, and decrement
+	// its storage so dataset/ancestor counts reflect the removal. Mirrors
+	// pennsieve-api's PackageManager.delete behavior on the DB side.
+	for _, old := range conflicts {
+		newName := fmt.Sprintf("__DELETED__%s_%s", old.NodeId, old.Name)
+		_, err := q.db.ExecContext(ctx,
+			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
+			packageState.Deleting.String(), newName, old.Id)
+		if err != nil {
+			return nil, fmt.Errorf("soft-deleting predecessor %d: %w", old.Id, err)
+		}
+
+		size, err := q.GetPackageStorageById(ctx, old.Id)
+		if err != nil {
+			// No storage row just means no decrement needed.
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, fmt.Errorf("reading storage for predecessor %d: %w", old.Id, err)
+		}
+		if size <= 0 {
+			continue
+		}
+		if err := q.IncrementPackageStorageAncestors(ctx, old.Id, -size); err != nil {
+			return nil, fmt.Errorf("decrementing package/ancestor storage for predecessor %d: %w", old.Id, err)
+		}
+		if err := q.IncrementDatasetStorage(ctx, datasetId, -size); err != nil {
+			return nil, fmt.Errorf("decrementing dataset storage for predecessor %d: %w", old.Id, err)
+		}
+	}
+
+	inserted, failed, err := q.addPackageByParent(ctx, parentId, records, replacementByNodeId)
+	if err != nil {
+		return nil, err
+	}
+	if len(failed) > 0 {
+		return nil, fmt.Errorf("replace: %d unexpected insert failures after predecessor rename", len(failed))
+	}
+
+	// Link back: old.replaced_by_package_id = new.id
+	for _, p := range inserted {
+		if !p.ReplacesPackageId.Valid {
+			continue
+		}
+		_, err := q.db.ExecContext(ctx,
+			"UPDATE packages SET replaced_by_package_id=$1 WHERE id=$2",
+			p.Id, p.ReplacesPackageId.Int64)
+		if err != nil {
+			return nil, fmt.Errorf("setting back-ref on predecessor %d: %w", p.ReplacesPackageId.Int64, err)
+		}
+	}
+
+	return inserted, nil
+}
+
+// addPackagesFail returns an error if any record name collides with an
+// existing non-deleted package under the same parent; otherwise inserts
+// straight through without the rename-retry loop.
+func (q *Queries) addPackagesFail(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
+	conflicts, err := q.findConflictingPackages(ctx, parentId, records)
+	if err != nil {
+		return nil, err
+	}
+	if len(conflicts) > 0 {
+		names := make([]string, 0, len(conflicts))
+		for n := range conflicts {
+			names = append(names, n)
+		}
+		return nil, fmt.Errorf("conflict strategy FAIL: %d conflicting name(s): %v", len(names), names)
+	}
+
+	inserted, failed, err := q.addPackageByParent(ctx, parentId, records, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(failed) > 0 {
+		// Post-check failed (race with another insert). Surface the names.
+		failedNames := make([]string, 0, len(failed))
+		for _, f := range failed {
+			failedNames = append(failedNames, f.Name)
+		}
+		return nil, fmt.Errorf("conflict strategy FAIL: %d insert failure(s) after conflict check: %v", len(failed), failedNames)
+	}
+	return inserted, nil
+}
+
+// findConflictingPackages returns existing, non-deleted packages under the
+// given parent whose name matches any of the incoming records.
+func (q *Queries) findConflictingPackages(ctx context.Context, parentId int64, records []pgdb.PackageParams) (map[string]*pgdb.Package, error) {
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	names := make([]string, 0, len(records))
+	for _, r := range records {
+		names = append(names, r.Name)
+	}
+	datasetId := records[0].DatasetId
+
+	var queryStr string
+	var args []interface{}
+	if parentId < 0 {
+		queryStr = "SELECT id, name, node_id FROM packages " +
+			"WHERE dataset_id=$1 AND parent_id IS NULL " +
+			"AND state NOT IN ($2, $3) AND name = ANY($4)"
+		args = []interface{}{datasetId, packageState.Deleting.String(), packageState.Deleted.String(), pq.Array(names)}
+	} else {
+		queryStr = "SELECT id, name, node_id FROM packages " +
+			"WHERE dataset_id=$1 AND parent_id=$2 " +
+			"AND state NOT IN ($3, $4) AND name = ANY($5)"
+		args = []interface{}{datasetId, parentId, packageState.Deleting.String(), packageState.Deleted.String(), pq.Array(names)}
+	}
+
+	rows, err := q.db.QueryContext(ctx, queryStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	conflicts := map[string]*pgdb.Package{}
+	for rows.Next() {
+		var p pgdb.Package
+		if err := rows.Scan(&p.Id, &p.Name, &p.NodeId); err != nil {
+			return nil, err
+		}
+		pkg := p
+		conflicts[pkg.Name] = &pkg
+	}
+	return conflicts, nil
 }
 
 // GetPackageChildren Get the children in a package
@@ -271,13 +460,18 @@ func (q *Queries) GetPackageAncestorIds(ctx context.Context, packageId int64) ([
 }
 
 // PRIVATE
-// AddPackages runs the query to insert a set of packages that belong to the same parent folder.
-//   - If adding packages to root-folder, the parentId should be set to -1
+// addPackageByParent runs the query to insert a set of packages that belong
+// to the same parent folder.
+//   - If adding packages to root-folder, the parentId should be set to -1.
+//   - replacementByNodeId, if non-nil, maps each incoming record's NodeId to
+//     the id of the existing package it replaces. The caller is responsible
+//     for soft-deleting the predecessor before this call to avoid tripping
+//     the (name, dataset_id, parent_id) unique indexes.
 //
 // It returns two arrays:
 //  1. successfully created packages,
 //  2. packages that failed to be inserted due to a name constraint.
-func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, []pgdb.PackageParams, error) {
+func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, records []pgdb.PackageParams, replacementByNodeId map[string]int64) ([]pgdb.Package, []pgdb.PackageParams, error) {
 
 	log.Debug(fmt.Sprintf("ADD PACKAGES: %v", records))
 
@@ -316,30 +510,29 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 	}
 
 	sqlInsert := "INSERT INTO packages(name, type, state, node_id, parent_id, " +
-		"dataset_id, owner_id, size, import_id, attributes, created_at, updated_at) VALUES "
+		"dataset_id, owner_id, size, import_id, attributes, created_at, updated_at, replaces_package_id) VALUES "
 
+	const columnsPerRow = 13
 	for index, row := range validRecords {
-		inserts = append(inserts, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			index*12+1,
-			index*12+2,
-			index*12+3,
-			index*12+4,
-			index*12+5,
-			index*12+6,
-			index*12+7,
-			index*12+8,
-			index*12+9,
-			index*12+10,
-			index*12+11,
-			index*12+12,
-		))
+		placeholders := make([]string, columnsPerRow)
+		for c := 0; c < columnsPerRow; c++ {
+			placeholders[c] = fmt.Sprintf("$%d", index*columnsPerRow+c+1)
+		}
+		inserts = append(inserts, "("+strings.Join(placeholders, ",")+")")
+
+		var replacesId sql.NullInt64
+		if replacementByNodeId != nil {
+			if oldId, ok := replacementByNodeId[row.NodeId]; ok {
+				replacesId = sql.NullInt64{Int64: oldId, Valid: true}
+			}
+		}
 
 		values = append(values, row.Name, row.PackageType.String(), row.PackageState.String(), row.NodeId, sqlParentId, row.DatasetId,
-			row.OwnerId, row.Size, row.ImportId, row.Attributes, currentTime, currentTime)
+			row.OwnerId, row.Size, row.ImportId, row.Attributes, currentTime, currentTime, replacesId)
 	}
 
 	returnRows := "id, name, type, state, node_id, parent_id, " +
-		"dataset_id, owner_id, size, import_id, created_at, updated_at"
+		"dataset_id, owner_id, size, import_id, created_at, updated_at, replaces_package_id, replaced_by_package_id"
 
 	// Returning packages. If we run into a constraint, return the existing package.
 	// We will check in the addPackages function for the ID to see if there was a conflict.
@@ -383,6 +576,8 @@ func (q *Queries) addPackageByParent(ctx context.Context, parentId int64, record
 			&currentRecord.ImportId,
 			&currentRecord.CreatedAt,
 			&currentRecord.UpdatedAt,
+			&currentRecord.ReplacesPackageId,
+			&currentRecord.ReplacedByPackageId,
 		)
 
 		if err != nil {
