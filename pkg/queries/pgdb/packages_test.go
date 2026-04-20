@@ -618,23 +618,34 @@ func testGettingAncestors(t *testing.T, store *SQLStore, orgId int) {
 
 // testConflictReplace verifies the Replace strategy soft-deletes the
 // predecessor, inserts the new package with the back-reference populated,
-// and sets replaced_by_package_id on the predecessor.
+// sets replaced_by_package_id on the predecessor, and decrements the
+// predecessor's storage counts (package + dataset) to match
+// pennsieve-api's PackageManager.delete behavior.
 func testConflictReplace(t *testing.T, store *SQLStore, orgId int) {
 	defer test.Truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "package_storage")
+	defer test.Truncate(t, store.db, orgId, "dataset_storage")
+
+	datasetId := int64(1)
 
 	// Seed: a single package at root.
 	original := test.GenerateTestPackages([]test.PackageParams{
 		{Name: "report.csv", ParentId: -1},
-	}, 1)
+	}, int(datasetId))
 	originalResult, err := store.AddPackagesWithConflict(context.Background(), original, conflictStrategy.KeepBoth)
 	assert.NoError(t, err)
 	assert.Len(t, originalResult, 1)
 	originalId := originalResult[0].Id
 
+	// Seed storage rows so we can verify decrement.
+	const predecessorSize = int64(1000)
+	assert.NoError(t, store.Queries.IncrementPackageStorage(context.Background(), originalId, predecessorSize))
+	assert.NoError(t, store.Queries.IncrementDatasetStorage(context.Background(), datasetId, predecessorSize))
+
 	// Replace: upload a new package with the same name.
 	replacement := test.GenerateTestPackages([]test.PackageParams{
 		{Name: "report.csv", ParentId: -1},
-	}, 1)
+	}, int(datasetId))
 	replacementResult, err := store.AddPackagesWithConflict(context.Background(), replacement, conflictStrategy.Replace)
 	assert.NoError(t, err)
 	assert.Len(t, replacementResult, 1)
@@ -657,6 +668,15 @@ func testConflictReplace(t *testing.T, store *SQLStore, orgId int) {
 	assert.Contains(t, predecessorName, "__DELETED__", "Predecessor should be renamed with __DELETED__ prefix")
 	assert.True(t, predecessorReplacedBy.Valid, "replaced_by_package_id should be set")
 	assert.Equal(t, newPkg.Id, predecessorReplacedBy.Int64, "Predecessor's replaced_by_package_id should point at the new row")
+
+	// Storage counts on the predecessor and dataset should be decremented to 0.
+	predecessorStorage, err := store.Queries.GetPackageStorageById(context.Background(), originalId)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), predecessorStorage, "Predecessor package_storage should decrement to 0")
+
+	datasetStorage, err := store.Queries.GetDatasetStorageById(context.Background(), datasetId)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), datasetStorage, "Dataset storage should decrement to 0")
 }
 
 // testConflictFail verifies the Fail strategy rejects conflicting inserts

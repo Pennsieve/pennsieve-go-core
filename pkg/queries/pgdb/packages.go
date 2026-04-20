@@ -177,8 +177,11 @@ func (q *Queries) addPackagesKeepBoth(ctx context.Context, parentId int64, recor
 	return allInsertedPackages, nil
 }
 
-// addPackagesReplace soft-deletes each conflicting predecessor, inserts the
-// new packages with replaces_package_id set, then writes the back-reference.
+// addPackagesReplace soft-deletes each conflicting predecessor, decrements
+// its storage counts, inserts the new packages with replaces_package_id set,
+// then writes the back-reference. Async S3 asset cleanup is the caller's
+// responsibility (publish a DeletePackageJob to the jobs queue for each
+// returned package with ReplacesPackageId set).
 // Caller must ensure the call runs in a transaction for atomicity.
 func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
 	conflicts, err := q.findConflictingPackages(ctx, parentId, records)
@@ -193,8 +196,12 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 		}
 	}
 
+	datasetId := int64(records[0].DatasetId)
+
 	// Rename + soft-delete each predecessor so the new insert doesn't trip
-	// the unique (name, dataset_id, parent_id) partial indexes.
+	// the unique (name, dataset_id, parent_id) partial indexes, and decrement
+	// its storage so dataset/ancestor counts reflect the removal. Mirrors
+	// pennsieve-api's PackageManager.delete behavior on the DB side.
 	for _, old := range conflicts {
 		newName := fmt.Sprintf("__DELETED__%s_%s", old.NodeId, old.Name)
 		_, err := q.db.ExecContext(ctx,
@@ -202,6 +209,24 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 			packageState.Deleting.String(), newName, old.Id)
 		if err != nil {
 			return nil, fmt.Errorf("soft-deleting predecessor %d: %w", old.Id, err)
+		}
+
+		size, err := q.GetPackageStorageById(ctx, old.Id)
+		if err != nil {
+			// No storage row just means no decrement needed.
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, fmt.Errorf("reading storage for predecessor %d: %w", old.Id, err)
+		}
+		if size <= 0 {
+			continue
+		}
+		if err := q.IncrementPackageStorageAncestors(ctx, old.Id, -size); err != nil {
+			return nil, fmt.Errorf("decrementing package/ancestor storage for predecessor %d: %w", old.Id, err)
+		}
+		if err := q.IncrementDatasetStorage(ctx, datasetId, -size); err != nil {
+			return nil, fmt.Errorf("decrementing dataset storage for predecessor %d: %w", old.Id, err)
 		}
 	}
 
