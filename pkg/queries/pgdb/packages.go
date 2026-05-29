@@ -252,6 +252,49 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 	return inserted, nil
 }
 
+// PrepareReplace frees the name in the packages table so an insert for
+// a new file with the same name can claim it. For each predecessor it
+// renames the row to "__DELETED__<NodeId>_<oldName>" and sets state =
+// DELETING.
+//
+// PrepareReplace handles only this "make room" step. After calling it
+// the caller still needs to:
+//   - INSERT the new package with replaces_package_id pointing at the
+//     predecessor's id, and
+//   - UPDATE the predecessor's replaced_by_package_id to point at the
+//     new package once it exists.
+//
+// Run this inside the same transaction as those inserts and updates
+// (use Queries.WithTx). The full replace looks like:
+// PrepareReplace → insert new → set back-reference → commit. Then call
+// packagedelete.DeletePackages to hand off storage/S3/restore-record
+// cleanup to process-jobs-service.
+//
+// Each predecessor needs Id, NodeId, and Name set;
+// findConflictingPackages already returns those.
+func (q *Queries) PrepareReplace(ctx context.Context, predecessors []*pgdb.Package) error {
+	if len(predecessors) == 0 {
+		return nil
+	}
+	for _, p := range predecessors {
+		if p == nil {
+			return errors.New("PrepareReplace: nil predecessor")
+		}
+		if p.Id == 0 || p.NodeId == "" {
+			return fmt.Errorf("PrepareReplace: predecessor missing Id or NodeId (id=%d, nodeId=%q)", p.Id, p.NodeId)
+		}
+		// Same rename pattern addPackagesReplace uses, so both entry
+		// points produce identical __DELETED__ rows.
+		newName := fmt.Sprintf("__DELETED__%s_%s", p.NodeId, p.Name)
+		if _, err := q.db.ExecContext(ctx,
+			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
+			packageState.Deleting.String(), newName, p.Id); err != nil {
+			return fmt.Errorf("PrepareReplace: renaming predecessor %d: %w", p.Id, err)
+		}
+	}
+	return nil
+}
+
 // findConflictingPackages returns existing, non-deleted packages under the
 // given parent whose name matches any of the incoming records.
 func (q *Queries) findConflictingPackages(ctx context.Context, parentId int64, records []pgdb.PackageParams) (map[string]*pgdb.Package, error) {

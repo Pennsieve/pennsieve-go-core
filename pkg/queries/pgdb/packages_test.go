@@ -29,6 +29,9 @@ func TestPackageTable(t *testing.T) {
 		"Test getting ancestor Ids":      testGettingAncestors,
 		"Test conflict replace":          testConflictReplace,
 		"Test conflict replace no-op":    testConflictReplaceNoConflict,
+		"Test PrepareReplace":            testPrepareReplace,
+		"Test PrepareReplace empty":      testPrepareReplaceEmpty,
+		"Test PrepareReplace validation": testPrepareReplaceValidation,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -692,4 +695,102 @@ func testConflictReplaceNoConflict(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, "solo.txt", result[0].Name)
 	assert.False(t, result[0].ReplacesPackageId.Valid, "No conflict = no replaces_package_id")
 	assert.False(t, result[0].ReplacedByPackageId.Valid, "Fresh insert should have null replaced_by_package_id")
+}
+
+// testPrepareReplace checks that PrepareReplace renames the old row and
+// sets it to DELETING — and nothing else. Storage rows should stay put;
+// the delete consumer handles those.
+func testPrepareReplace(t *testing.T, store *SQLStore, orgId int) {
+	defer test.Truncate(t, store.db, orgId, "packages")
+	defer test.Truncate(t, store.db, orgId, "package_storage")
+	defer test.Truncate(t, store.db, orgId, "dataset_storage")
+
+	datasetId := int64(1)
+	ctx := context.Background()
+
+	// Seed two packages so we can confirm only the target one moves.
+	seed := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "report.csv", ParentId: -1},
+		{Name: "untouched.csv", ParentId: -1},
+	}, int(datasetId))
+	inserted, err := store.AddPackagesWithConflict(ctx, seed, conflictStrategy.KeepBoth)
+	assert.NoError(t, err)
+	assert.Len(t, inserted, 2)
+
+	var target, bystander pgdb.Package
+	for i := range inserted {
+		switch inserted[i].Name {
+		case "report.csv":
+			target = inserted[i]
+		case "untouched.csv":
+			bystander = inserted[i]
+		}
+	}
+	originalName := target.Name
+	originalNodeId := target.NodeId
+
+	// Add storage rows on the target so we can verify PrepareReplace leaves
+	// them alone.
+	const targetStorage = int64(1000)
+	assert.NoError(t, store.Queries.IncrementPackageStorage(ctx, target.Id, targetStorage))
+	assert.NoError(t, store.Queries.IncrementDatasetStorage(ctx, datasetId, targetStorage))
+
+	// Run it.
+	err = store.Queries.PrepareReplace(ctx, []*pgdb.Package{&target})
+	assert.NoError(t, err)
+
+	// The target row should be renamed and set to DELETING.
+	selectStmt := fmt.Sprintf(
+		"SELECT name, state FROM \"%d\".packages WHERE id=$1", orgId)
+	var gotName, gotState string
+	assert.NoError(t, store.db.QueryRow(selectStmt, target.Id).Scan(&gotName, &gotState))
+	assert.Equal(t, packageState.Deleting.String(), gotState,
+		"state should be DELETING")
+	assert.Equal(t, fmt.Sprintf("__DELETED__%s_%s", originalNodeId, originalName), gotName,
+		"row should be renamed with __DELETED__ prefix")
+
+	// Storage should not have moved.
+	pkgStorage, err := store.Queries.GetPackageStorageById(ctx, target.Id)
+	assert.NoError(t, err)
+	assert.Equal(t, targetStorage, pkgStorage,
+		"package storage should not change")
+	dsStorage, err := store.Queries.GetDatasetStorageById(ctx, datasetId)
+	assert.NoError(t, err)
+	assert.Equal(t, targetStorage, dsStorage,
+		"dataset storage should not change")
+
+	// The other package should not move.
+	var bystanderName, bystanderState string
+	assert.NoError(t, store.db.QueryRow(selectStmt, bystander.Id).Scan(&bystanderName, &bystanderState))
+	assert.Equal(t, "untouched.csv", bystanderName)
+	assert.NotEqual(t, packageState.Deleting.String(), bystanderState)
+
+	// The name slot should be free: re-inserting the same name in the
+	// same parent should succeed and keep the original name.
+	reinsert := test.GenerateTestPackages([]test.PackageParams{
+		{Name: originalName, ParentId: -1},
+	}, int(datasetId))
+	reResult, err := store.AddPackagesWithConflict(ctx, reinsert, conflictStrategy.KeepBoth)
+	assert.NoError(t, err, "name should be free after PrepareReplace")
+	assert.Len(t, reResult, 1)
+	assert.Equal(t, originalName, reResult[0].Name,
+		"new insert should claim the original name (no auto-rename)")
+}
+
+// testPrepareReplaceEmpty: nil or empty input is a no-op, not an error.
+func testPrepareReplaceEmpty(t *testing.T, store *SQLStore, _ int) {
+	assert.NoError(t, store.Queries.PrepareReplace(context.Background(), nil))
+	assert.NoError(t, store.Queries.PrepareReplace(context.Background(), []*pgdb.Package{}))
+}
+
+// testPrepareReplaceValidation: bad input should error early rather than
+// run a SQL update that matches nothing or writes a malformed name.
+func testPrepareReplaceValidation(t *testing.T, store *SQLStore, _ int) {
+	ctx := context.Background()
+	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{nil}),
+		"nil predecessor entry must error")
+	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{{Id: 0, NodeId: "N:package:x", Name: "x"}}),
+		"zero Id must error")
+	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{{Id: 1, NodeId: "", Name: "x"}}),
+		"empty NodeId must error")
 }
