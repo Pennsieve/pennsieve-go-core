@@ -286,10 +286,22 @@ func (q *Queries) PrepareReplace(ctx context.Context, predecessors []*pgdb.Packa
 		// Same rename pattern addPackagesReplace uses, so both entry
 		// points produce identical __DELETED__ rows.
 		newName := fmt.Sprintf("__DELETED__%s_%s", p.NodeId, p.Name)
-		if _, err := q.db.ExecContext(ctx,
+		result, err := q.db.ExecContext(ctx,
 			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
-			packageState.Deleting.String(), newName, p.Id); err != nil {
+			packageState.Deleting.String(), newName, p.Id)
+		if err != nil {
 			return fmt.Errorf("PrepareReplace: renaming predecessor %d: %w", p.Id, err)
+		}
+		// No matching row means the caller handed us a bad or stale id.
+		// Fail loudly rather than report success — otherwise the caller
+		// goes on to insert a new package pointing at a row that isn't
+		// where it thinks it is.
+		n, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("PrepareReplace: checking rows affected for %d: %w", p.Id, err)
+		}
+		if n == 0 {
+			return fmt.Errorf("PrepareReplace: predecessor %d not found (or already deleting)", p.Id)
 		}
 	}
 	return nil

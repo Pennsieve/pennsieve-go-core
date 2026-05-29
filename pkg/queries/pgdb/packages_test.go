@@ -793,4 +793,9 @@ func testPrepareReplaceValidation(t *testing.T, store *SQLStore, _ int) {
 		"zero Id must error")
 	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{{Id: 1, NodeId: "", Name: "x"}}),
 		"empty NodeId must error")
+	// Well-formed input, but the id doesn't exist in the table — the
+	// UPDATE matches nothing, so PrepareReplace should fail rather than
+	// quietly report success.
+	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{{Id: 999999, NodeId: "N:package:missing", Name: "ghost.csv"}}),
+		"unknown id must error")
 }
