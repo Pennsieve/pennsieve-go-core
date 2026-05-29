@@ -175,12 +175,7 @@ func (q *Queries) addPackagesKeepBoth(ctx context.Context, parentId int64, recor
 	return allInsertedPackages, nil
 }
 
-// addPackagesReplace soft-deletes each conflicting predecessor, decrements
-// its storage counts, inserts the new packages with replaces_package_id set,
-// then writes the back-reference. Async S3 asset cleanup is the caller's
-// responsibility (publish a DeletePackageJob to the jobs queue for each
-// returned package with ReplacesPackageId set).
-// Caller must ensure the call runs in a transaction for atomicity.
+// addPackagesReplace clears each conflicting name (via PrepareReplace)
 func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
 	conflicts, err := q.findConflictingPackages(ctx, parentId, records)
 	if err != nil {
@@ -188,44 +183,19 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 	}
 
 	replacementByNodeId := map[string]int64{}
+	predecessors := make([]*pgdb.Package, 0, len(conflicts))
 	for _, r := range records {
 		if old, ok := conflicts[r.Name]; ok {
 			replacementByNodeId[r.NodeId] = old.Id
 		}
 	}
-
-	datasetId := int64(records[0].DatasetId)
-
-	// Rename + soft-delete each predecessor so the new insert doesn't trip
-	// the unique (name, dataset_id, parent_id) partial indexes, and decrement
-	// its storage so dataset/ancestor counts reflect the removal. Mirrors
-	// pennsieve-api's PackageManager.delete behavior on the DB side.
 	for _, old := range conflicts {
-		newName := fmt.Sprintf("__DELETED__%s_%s", old.NodeId, old.Name)
-		_, err := q.db.ExecContext(ctx,
-			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
-			packageState.Deleting.String(), newName, old.Id)
-		if err != nil {
-			return nil, fmt.Errorf("soft-deleting predecessor %d: %w", old.Id, err)
-		}
+		predecessors = append(predecessors, old)
+	}
 
-		size, err := q.GetPackageStorageById(ctx, old.Id)
-		if err != nil {
-			// No storage row just means no decrement needed.
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return nil, fmt.Errorf("reading storage for predecessor %d: %w", old.Id, err)
-		}
-		if size <= 0 {
-			continue
-		}
-		if err := q.IncrementPackageStorageAncestors(ctx, old.Id, -size); err != nil {
-			return nil, fmt.Errorf("decrementing package/ancestor storage for predecessor %d: %w", old.Id, err)
-		}
-		if err := q.IncrementDatasetStorage(ctx, datasetId, -size); err != nil {
-			return nil, fmt.Errorf("decrementing dataset storage for predecessor %d: %w", old.Id, err)
-		}
+	// Free the name slot for each predecessor (rename + state=DELETING)
+	if err := q.PrepareReplace(ctx, predecessors); err != nil {
+		return nil, err
 	}
 
 	inserted, failed, err := q.addPackageByParent(ctx, parentId, records, replacementByNodeId)
