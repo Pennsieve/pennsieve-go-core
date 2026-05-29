@@ -175,12 +175,7 @@ func (q *Queries) addPackagesKeepBoth(ctx context.Context, parentId int64, recor
 	return allInsertedPackages, nil
 }
 
-// addPackagesReplace soft-deletes each conflicting predecessor, decrements
-// its storage counts, inserts the new packages with replaces_package_id set,
-// then writes the back-reference. Async S3 asset cleanup is the caller's
-// responsibility (publish a DeletePackageJob to the jobs queue for each
-// returned package with ReplacesPackageId set).
-// Caller must ensure the call runs in a transaction for atomicity.
+// addPackagesReplace clears each conflicting name (via PrepareReplace)
 func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, records []pgdb.PackageParams) ([]pgdb.Package, error) {
 	conflicts, err := q.findConflictingPackages(ctx, parentId, records)
 	if err != nil {
@@ -188,44 +183,19 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 	}
 
 	replacementByNodeId := map[string]int64{}
+	predecessors := make([]*pgdb.Package, 0, len(conflicts))
 	for _, r := range records {
 		if old, ok := conflicts[r.Name]; ok {
 			replacementByNodeId[r.NodeId] = old.Id
 		}
 	}
-
-	datasetId := int64(records[0].DatasetId)
-
-	// Rename + soft-delete each predecessor so the new insert doesn't trip
-	// the unique (name, dataset_id, parent_id) partial indexes, and decrement
-	// its storage so dataset/ancestor counts reflect the removal. Mirrors
-	// pennsieve-api's PackageManager.delete behavior on the DB side.
 	for _, old := range conflicts {
-		newName := fmt.Sprintf("__DELETED__%s_%s", old.NodeId, old.Name)
-		_, err := q.db.ExecContext(ctx,
-			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
-			packageState.Deleting.String(), newName, old.Id)
-		if err != nil {
-			return nil, fmt.Errorf("soft-deleting predecessor %d: %w", old.Id, err)
-		}
+		predecessors = append(predecessors, old)
+	}
 
-		size, err := q.GetPackageStorageById(ctx, old.Id)
-		if err != nil {
-			// No storage row just means no decrement needed.
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return nil, fmt.Errorf("reading storage for predecessor %d: %w", old.Id, err)
-		}
-		if size <= 0 {
-			continue
-		}
-		if err := q.IncrementPackageStorageAncestors(ctx, old.Id, -size); err != nil {
-			return nil, fmt.Errorf("decrementing package/ancestor storage for predecessor %d: %w", old.Id, err)
-		}
-		if err := q.IncrementDatasetStorage(ctx, datasetId, -size); err != nil {
-			return nil, fmt.Errorf("decrementing dataset storage for predecessor %d: %w", old.Id, err)
-		}
+	// Free the name slot for each predecessor (rename + state=DELETING)
+	if err := q.PrepareReplace(ctx, predecessors); err != nil {
+		return nil, err
 	}
 
 	inserted, failed, err := q.addPackageByParent(ctx, parentId, records, replacementByNodeId)
@@ -250,6 +220,61 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 	}
 
 	return inserted, nil
+}
+
+// PrepareReplace frees the name in the packages table so an insert for
+// a new file with the same name can claim it. For each predecessor it
+// renames the row to "__DELETED__<NodeId>_<oldName>" and sets state =
+// DELETING.
+//
+// PrepareReplace handles only this "make room" step. After calling it
+// the caller still needs to:
+//   - INSERT the new package with replaces_package_id pointing at the
+//     predecessor's id, and
+//   - UPDATE the predecessor's replaced_by_package_id to point at the
+//     new package once it exists.
+//
+// Run this inside the same transaction as those inserts and updates
+// (use Queries.WithTx). The full replace looks like:
+// PrepareReplace → insert new → set back-reference → commit. Then call
+// packagedelete.DeletePackages to hand off storage/S3/restore-record
+// cleanup to process-jobs-service.
+//
+// Each predecessor needs Id, NodeId, and Name set;
+// findConflictingPackages already returns those.
+func (q *Queries) PrepareReplace(ctx context.Context, predecessors []*pgdb.Package) error {
+	if len(predecessors) == 0 {
+		return nil
+	}
+	for _, p := range predecessors {
+		if p == nil {
+			return errors.New("PrepareReplace: nil predecessor")
+		}
+		if p.Id == 0 || p.NodeId == "" {
+			return fmt.Errorf("PrepareReplace: predecessor missing Id or NodeId (id=%d, nodeId=%q)", p.Id, p.NodeId)
+		}
+		// Same rename pattern addPackagesReplace uses, so both entry
+		// points produce identical __DELETED__ rows.
+		newName := fmt.Sprintf("__DELETED__%s_%s", p.NodeId, p.Name)
+		result, err := q.db.ExecContext(ctx,
+			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
+			packageState.Deleting.String(), newName, p.Id)
+		if err != nil {
+			return fmt.Errorf("PrepareReplace: renaming predecessor %d: %w", p.Id, err)
+		}
+		// No matching row means the caller handed us a bad or stale id.
+		// Fail loudly rather than report success — otherwise the caller
+		// goes on to insert a new package pointing at a row that isn't
+		// where it thinks it is.
+		n, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("PrepareReplace: checking rows affected for %d: %w", p.Id, err)
+		}
+		if n == 0 {
+			return fmt.Errorf("PrepareReplace: predecessor %d not found (or already deleting)", p.Id)
+		}
+	}
+	return nil
 }
 
 // findConflictingPackages returns existing, non-deleted packages under the
