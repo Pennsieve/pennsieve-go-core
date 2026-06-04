@@ -19,28 +19,29 @@ type wireMessage struct {
 	Id string `json:"id"`
 }
 
-// fakeQueueSender records every message it's asked to send. Set failAt
-// to a call index (0-based) to make that one call return an error.
+// fakeQueueSender records every message it's handed and counts how many
+// times it was called. Set fail to make SendToQueue return an error.
 type fakeQueueSender struct {
-	bodies   [][]byte
-	failAt   int  // -1 = never fail
-	gotCalls int
+	bodies [][]byte
+	calls  int
+	fail   bool
 }
 
 func newFakeQueueSender() *fakeQueueSender {
-	return &fakeQueueSender{failAt: -1}
+	return &fakeQueueSender{}
 }
 
-func (f *fakeQueueSender) SendToQueue(_ context.Context, body []byte) error {
-	idx := f.gotCalls
-	f.gotCalls++
-	if idx == f.failAt {
+func (f *fakeQueueSender) SendToQueue(_ context.Context, bodies [][]byte) error {
+	f.calls++
+	if f.fail {
 		return errors.New("fake: send boom")
 	}
-	// Copy the bytes — the caller may reuse the slice.
-	cp := make([]byte, len(body))
-	copy(cp, body)
-	f.bodies = append(f.bodies, cp)
+	for _, b := range bodies {
+		// Copy the bytes — the caller may reuse the slice.
+		cp := make([]byte, len(b))
+		copy(cp, b)
+		f.bodies = append(f.bodies, cp)
+	}
 	return nil
 }
 
@@ -98,9 +99,10 @@ func TestDeletePackages_EnvelopeShape(t *testing.T) {
 	assert.NoError(t, err, "id must be a valid UUID, got %q", idStr)
 }
 
-// TestDeletePackages_SendsEach checks that each request results in one
-// SendToQueue call, with a unique id per message.
-func TestDeletePackages_SendsEach(t *testing.T) {
+// TestDeletePackages_OneBatchCall checks that all requests are handed to
+// the sender in a single call (so the sender can batch), each with a
+// unique id.
+func TestDeletePackages_OneBatchCall(t *testing.T) {
 	p := newFakeQueueSender()
 	reqs := []DeleteRequest{
 		{PackageID: 1, OrganizationID: 5, UserNodeID: "N:user:a", TraceID: "t"},
@@ -108,6 +110,7 @@ func TestDeletePackages_SendsEach(t *testing.T) {
 		{PackageID: 3, OrganizationID: 5, UserNodeID: "N:user:a", TraceID: "t"},
 	}
 	require.NoError(t, DeletePackages(context.Background(), p, reqs))
+	assert.Equal(t, 1, p.calls, "all messages should go in a single SendToQueue call")
 	require.Len(t, p.bodies, 3)
 
 	ids := map[string]struct{}{}
@@ -124,24 +127,43 @@ func TestDeletePackages_NilQueueSender(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestDeletePackages_CollectsAllErrors checks that every invalid request
+// is reported, not just the first — and the valid one in between still
+// gets sent.
+func TestDeletePackages_CollectsAllErrors(t *testing.T) {
+	p := newFakeQueueSender()
+	reqs := []DeleteRequest{
+		{PackageID: 0, OrganizationID: 5, UserNodeID: "N:user:a", TraceID: "t"},   // bad: PackageID
+		{PackageID: 1, OrganizationID: 5, UserNodeID: "N:user:a", TraceID: "t"},   // good
+		{PackageID: 2, OrganizationID: 5, UserNodeID: "", TraceID: "t"},           // bad: UserNodeID
+	}
+	err := DeletePackages(context.Background(), p, reqs)
+	require.Error(t, err)
+	// Both bad requests should be named in the joined error.
+	assert.Contains(t, err.Error(), "request 0")
+	assert.Contains(t, err.Error(), "request 2")
+	// The good one in the middle still went out.
+	assert.Len(t, p.bodies, 1, "the valid request should still be sent")
+}
+
 func TestDeletePackages_EmptySlice(t *testing.T) {
 	p := newFakeQueueSender()
 	assert.NoError(t, DeletePackages(context.Background(), p, nil))
 	assert.Empty(t, p.bodies)
 }
 
-// TestDeletePackages_ContinuesPastSendError checks that one bad send
-// doesn't stop the rest of the batch.
-func TestDeletePackages_ContinuesPastSendError(t *testing.T) {
+// TestDeletePackages_ReturnsSendError checks that a sender failure is
+// surfaced. Per-message partial-failure handling is the sender's job now
+// (e.g. SQS batch entry failures); from here a failed send is one error.
+func TestDeletePackages_ReturnsSendError(t *testing.T) {
 	p := newFakeQueueSender()
-	p.failAt = 0 // first call fails
+	p.fail = true
 	reqs := []DeleteRequest{
 		{PackageID: 1, OrganizationID: 5, UserNodeID: "N:user:a", TraceID: "t"},
 		{PackageID: 2, OrganizationID: 5, UserNodeID: "N:user:a", TraceID: "t"},
 	}
 	err := DeletePackages(context.Background(), p, reqs)
-	assert.Error(t, err, "first send error should be returned")
-	assert.Len(t, p.bodies, 1, "second request should still have been sent")
+	assert.Error(t, err, "send failure should be returned")
 }
 
 // TestDeletePackages_ValidationFailsPerRequest checks that an invalid

@@ -7,13 +7,14 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
-// QueueSender sends one message to the delete queue. Caller supplies
+// QueueSender sends batch messages to the delete queue. Caller supplies
 // the implementation for loading messages on the queue.
 // DeletePackages calls SendToQueue once per request.
 type QueueSender interface {
-	SendToQueue(ctx context.Context, body []byte) error
+	SendToQueue(ctx context.Context, bodies [][]byte) error
 }
 
 // DeleteRequest is a single package to delete.
@@ -32,10 +33,7 @@ type DeleteRequest struct {
 	TraceID        string `json:"traceId"`
 }
 
-// DeletePackages sends one delete message per request through the given
-// QueueSender. If a single request fails (bad input, marshal error, send
-// error), the others still go through — the first error is returned so
-// you know something went wrong without losing the good ones.
+// DeletePackages builds and validates requests, then sends them to the QueueSender.
 func DeletePackages(ctx context.Context, sender QueueSender, reqs []DeleteRequest) error {
 	if sender == nil {
 		return errors.New("packagedelete: QueueSender is nil")
@@ -44,16 +42,12 @@ func DeletePackages(ctx context.Context, sender QueueSender, reqs []DeleteReques
 		return nil
 	}
 
-	var firstErr error
-	recordErr := func(i int, err error) {
-		if firstErr == nil {
-			firstErr = fmt.Errorf("request %d: %w", i, err)
-		}
-	}
+	var errs []error
 
+	bodies := make([][]byte, 0, len(reqs))
 	for i, r := range reqs {
 		if err := validate(r); err != nil {
-			recordErr(i, err)
+			errs = append(errs, fmt.Errorf("request %d: %w", i, err))
 			continue
 		}
 		body, err := json.Marshal(map[string]any{
@@ -63,15 +57,21 @@ func DeletePackages(ctx context.Context, sender QueueSender, reqs []DeleteReques
 			}{r, uuid.NewString()},
 		})
 		if err != nil {
-			recordErr(i, fmt.Errorf("marshal: %w", err))
+			errs = append(errs, fmt.Errorf("request %d: marshal: %w", i, err))
 			continue
 		}
-		if err := sender.SendToQueue(ctx, body); err != nil {
-			recordErr(i, fmt.Errorf("send: %w", err))
-			continue
-		}
+		bodies = append(bodies, body)
 	}
-	return firstErr
+
+	if len(bodies) == 0 {
+		log.Warnf("packagedelete: no valid delete messages to send out of %d request(s)", len(reqs))
+		return errors.Join(errs...)
+	}
+
+	if err := sender.SendToQueue(ctx, bodies); err != nil {
+		errs = append(errs, fmt.Errorf("send: %w", err))
+	}
+	return errors.Join(errs...)
 }
 
 func validate(r DeleteRequest) error {
