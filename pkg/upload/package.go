@@ -33,16 +33,9 @@ func resolveTypeFromName(targetName string) fileType.Type {
 	var bestKey string
 	bestLen := -1
 	for ext := range fileType.ExtensionToTypeDict {
-		// Most keys are stored without a leading dot ("edf", "nii.gz")
-		// But a few keep the leading `.` (e.g. ".eeg")
-		// Normalize by trimming any leading dots.
-		trimmedExt := strings.TrimPrefix(ext, ".")
-		if trimmedExt == "" {
-			continue
-		}
 		// longer matches are always the right choice (ie choose ".nii.gz" over ".gz")
-		if len(trimmedExt) > bestLen && strings.HasSuffix(lowerTargetName, "."+trimmedExt) {
-			bestLen = len(trimmedExt)
+		if len(ext) > bestLen && strings.HasSuffix(lowerTargetName, "."+ext) {
+			bestLen = len(ext)
 			bestKey = ext
 		}
 	}
