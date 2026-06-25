@@ -87,12 +87,12 @@ func (q *Queries) AddOrganizationUser(ctx context.Context, orgId int64, userId i
 
 	_, err = q.db.ExecContext(ctx, statement, orgId, userId, permBit)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
+		return nil, fmt.Errorf("database error on insert: %v", err)
 	}
 
 	orgUser, err := q.GetOrganizationUser(ctx, orgId, userId)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
+		return nil, fmt.Errorf("database error on query: %v", err)
 	}
 
 	return orgUser, nil

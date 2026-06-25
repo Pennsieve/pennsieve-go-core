@@ -43,7 +43,7 @@ func (q *Queries) AddDatasetRelease(ctx context.Context, release pgdb.DatasetRel
 	).Scan(&id)
 
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
+		return nil, fmt.Errorf("database error on insert: %v", err)
 	}
 
 	return q.GetDatasetReleaseById(ctx, id)
@@ -61,7 +61,7 @@ func (q *Queries) UpdateDatasetRelease(ctx context.Context, release pgdb.Dataset
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on update: %v", err))
+		return nil, fmt.Errorf("database error on update: %v", err)
 	}
 
 	return q.GetDatasetReleaseById(ctx, release.Id)
@@ -102,7 +102,7 @@ func (q *Queries) getDatasetRelease(ctx context.Context, predicate string) (*pgd
 		if err == sql.ErrNoRows {
 			return nil, DatasetReleaseNotFoundError{fmt.Sprintf("dataset release not found where %s", predicate)}
 		} else {
-			return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
+			return nil, fmt.Errorf("database error on query: %v", err)
 		}
 	}
 

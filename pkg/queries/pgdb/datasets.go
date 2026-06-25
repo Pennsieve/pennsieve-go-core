@@ -91,12 +91,12 @@ func (q *Queries) CreateDataset(ctx context.Context, p CreateDatasetParams) (*pg
 		p.Type.String())
 
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on insert: %v", err))
+		return nil, fmt.Errorf("database error on insert: %v", err)
 	}
 
 	dataset, err := q.GetDatasetByName(ctx, p.Name)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("database error on query: %v", err))
+		return nil, fmt.Errorf("database error on query: %v", err)
 	}
 
 	return dataset, nil
