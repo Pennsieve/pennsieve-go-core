@@ -42,7 +42,7 @@ func deleteDataset(store *SQLStore, datasetId int64) {
 	)
 
 	if err != nil {
-		fmt.Printf(fmt.Sprintf("deleteDataset() database error: %v", err))
+		fmt.Printf("deleteDataset() database error: %v", err)
 	}
 }
 
