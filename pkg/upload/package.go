@@ -1,52 +1,51 @@
 package upload
 
 import (
+	"strings"
+
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/manifest/manifestFile"
 	log "github.com/sirupsen/logrus"
-	"regexp"
-	"strings"
 )
 
 func PackageTypeResolver(items []manifestFile.FileDTO) []manifestFile.FileDTO {
 
-	for i, f := range items {
+	for i := range items {
 
-		// Determine Type based on extension, or
-		// return type that is already defined in FileDTO
-		var fileExtension string
-		var fType fileType.Type
+		// Only resolve the type from the file name when one hasn't already
+		// been set on the FileDTO; an existing FileType is left untouched.
 		if len(items[i].FileType) == 0 {
-			// 1. Find FileType
-
-			// Split on the first '.' and consider everything after the extension.
-			r := regexp.MustCompile(`(?P<FileName>[^\.]*)?\.?(?P<Extension>.*)`)
-			pathParts := r.FindStringSubmatch(f.TargetName)
-			if pathParts == nil {
-				log.WithFields(
-					log.Fields{
-						"upload_id": items[i].UploadID,
-					},
-				).Error("Unable to parse filename:", f.TargetName)
-				continue
-			}
-
-			fileExtension = pathParts[r.SubexpIndex("Extension")]
-
-			var exists bool
-			fType, exists = fileType.ExtensionToTypeDict[fileExtension]
-			if !exists {
-				fType = fileType.GenericData
-			}
-
-			// Set the type if not previously set.
+			fType := resolveTypeFromName(items[i].TargetName)
 			items[i].FileType = fType.String()
-		} else {
-			fType = fileType.Dict[items[i].FileType]
 		}
-
 	}
 	return items
+}
+
+// resolveTypeFromName determines a file's fileType.Type from its name by
+// matching against the longest known extension in ExtensionToTypeDict.
+// It uses a longest-suffix match rather than splitting on the first '.' so that
+// names with extra dots (e.g. "example.june_21.edf") and multi-part extensions
+// (e.g. "scan.nii.gz", "image.ome.tiff") both resolve correctly. Case-insensitive.
+func resolveTypeFromName(targetName string) fileType.Type {
+	lowerTargetName := strings.ToLower(targetName)
+
+	var bestKey string
+	bestLen := -1
+	for ext := range fileType.ExtensionToTypeDict {
+		// longer matches are always the right choice (ie choose ".nii.gz" over ".gz")
+		if len(ext) > bestLen && strings.HasSuffix(lowerTargetName, "."+ext) {
+			bestLen = len(ext)
+			bestKey = ext
+		}
+	}
+
+	if bestKey == "" {
+		log.WithFields(log.Fields{"targetName": targetName}).
+			Debug("no known file extension matched; defaulting to GenericData")
+		return fileType.GenericData
+	}
+	return fileType.ExtensionToTypeDict[bestKey]
 }
 
 func persystMerger(fileName string, layFile *manifestFile.FileDTO, items []manifestFile.FileDTO) {

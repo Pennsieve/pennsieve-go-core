@@ -471,7 +471,7 @@ var ExtensionToTypeDict = map[string]Type{
 	"nex":           NeuroExplorer,
 	"nex5":          NeuroExplorer,
 	"smr":           Spike2,
-	".eeg":          NihonKoden,
+	"eeg":           NihonKoden,
 	"plx":           Plexon,
 	"pl2":           Plexon,
 	"e":             Nicolet,
