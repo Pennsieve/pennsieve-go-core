@@ -164,12 +164,12 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 	}
 
 	// 1. Get Dataset Role and integer ID
-	datasetQuery := fmt.Sprintf("SELECT id, role FROM \"%d\".datasets WHERE node_id='%s';", organizationId, datasetNodeId)
+	datasetQuery := fmt.Sprintf("SELECT id, role FROM \"%d\".datasets WHERE node_id=$1;", organizationId)
 
 	var datasetId int64
 	var maybeDatasetRole sql.NullString
 
-	row := q.db.QueryRowContext(ctx, datasetQuery)
+	row := q.db.QueryRowContext(ctx, datasetQuery, datasetNodeId)
 	err := row.Scan(
 		&datasetId,
 		&maybeDatasetRole)
@@ -193,18 +193,18 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 	datasetTeam := fmt.Sprintf("\"%d\".dataset_team", organizationId)
 	teamQueryStr := fmt.Sprintf("SELECT %s FROM pennsieve.team_user JOIN %s "+
 		"ON pennsieve.team_user.team_id = %s.team_id "+
-		"WHERE user_id=%d AND dataset_id=%d", teamPermission, datasetTeam, datasetTeam, user.Id, datasetId)
+		"WHERE user_id=$1 AND dataset_id=$2", teamPermission, datasetTeam, datasetTeam)
 
 	// Get User Role
 	userPermission := fmt.Sprintf("\"%d\".dataset_user.role", organizationId)
 	datasetUser := fmt.Sprintf("\"%d\".dataset_user", organizationId)
-	userQueryStr := fmt.Sprintf("SELECT %s FROM %s WHERE user_id=%d AND dataset_id=%d",
-		userPermission, datasetUser, user.Id, datasetId)
+	userQueryStr := fmt.Sprintf("SELECT %s FROM %s WHERE user_id=$1 AND dataset_id=$2",
+		userPermission, datasetUser)
 
 	// Combine all queries in a single Union.
 	fullQuery := teamQueryStr + " UNION " + userQueryStr + ";"
 
-	rows, err := q.db.QueryContext(ctx, fullQuery)
+	rows, err := q.db.QueryContext(ctx, fullQuery, user.Id, datasetId)
 	if err != nil {
 		return nil, err
 	}

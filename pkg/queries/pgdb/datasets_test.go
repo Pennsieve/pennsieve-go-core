@@ -95,6 +95,7 @@ func TestDatasets(t *testing.T) {
 		"Empty String License Is Null":     testEmptyStringLicenseIsNull,
 		"Update updatedAt timestamp":       testUpdatedAtChange,
 		"Get Organization Id for Dataset":  testGetOrganizationIdForDataset,
+		"Get Dataset Claim":                testGetDatasetClaim,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -130,6 +131,31 @@ func testGetOrganizationIdForDataset(t *testing.T, store *SQLStore, orgId int) {
 	_, err = store.GetOrganizationIdForDataset(context.TODO(), "N:dataset:does-not-exist-00000000")
 	var notFound DatasetOrganizationNotFoundError
 	assert.ErrorAs(t, err, &notFound)
+}
+
+func testGetDatasetClaim(t *testing.T, store *SQLStore, orgId int) {
+	dsId, dsNodeId := addTestDataset(store.db, "Test Dataset - GetDatasetClaim")
+	// addTestDataset's insert fires the trigger into the global map; clean it up.
+	defer test.DeleteDatasetOrganization(t, store.db, dsNodeId)
+
+	ds, err := store.GetDatasetById(context.TODO(), dsId)
+	require.NoError(t, err)
+	user, err := store.GetUserById(context.TODO(), int64(1003)) // seeded user
+	require.NoError(t, err)
+	_, err = store.AddDatasetUser(context.TODO(), ds, user, role.Manager)
+	require.NoError(t, err)
+
+	// Exercises the parameterized dataset query ($1 node id) and the user side of the
+	// parameterized UNION ($1 user id, $2 dataset id).
+	claim, err := store.GetDatasetClaim(context.TODO(), user, dsNodeId, int64(orgId))
+	require.NoError(t, err)
+	assert.Equal(t, role.Manager, claim.Role)
+	assert.Equal(t, dsNodeId, claim.NodeId)
+	assert.Equal(t, dsId, claim.IntId)
+
+	// Unknown dataset node id still returns raw sql.ErrNoRows (unchanged contract).
+	_, err = store.GetDatasetClaim(context.TODO(), user, "N:dataset:does-not-exist-00000000", int64(orgId))
+	assert.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {
