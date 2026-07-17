@@ -32,6 +32,14 @@ func (e DatasetUserNotFoundError) Error() string {
 	return fmt.Sprintf("dataset user was not found (error: %v)", e.ErrorMessage)
 }
 
+type DatasetOrganizationNotFoundError struct {
+	DatasetNodeId string
+}
+
+func (e DatasetOrganizationNotFoundError) Error() string {
+	return fmt.Sprintf("no organization mapping found for dataset node id: %s", e.DatasetNodeId)
+}
+
 type CreateDatasetParams struct {
 	Name                         string
 	Description                  string
@@ -260,6 +268,27 @@ func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	}
 
 	return &datasetUser, nil
+}
+
+// GetOrganizationIdForDataset resolves the organization id that owns the given dataset
+// node id using the global pennsieve.dataset_organization map. Returns
+// DatasetOrganizationNotFoundError if the node id is not present in the map, so callers
+// can distinguish a genuine map miss (deny) from a DB/connection failure (retryable error).
+func (q *Queries) GetOrganizationIdForDataset(ctx context.Context, datasetNodeId string) (int64, error) {
+	query := "SELECT organization_id FROM pennsieve.dataset_organization WHERE dataset_node_id = $1"
+
+	var organizationId int64
+	err := q.db.QueryRowContext(ctx, query, datasetNodeId).Scan(&organizationId)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return 0, DatasetOrganizationNotFoundError{DatasetNodeId: datasetNodeId}
+		default:
+			return 0, fmt.Errorf("error resolving organization id for dataset node id %s: %w", datasetNodeId, err)
+		}
+	}
+
+	return organizationId, nil
 }
 
 func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User, role role.Role) (*pgdb.DatasetUser, error) {

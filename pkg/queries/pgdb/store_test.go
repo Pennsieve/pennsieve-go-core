@@ -360,7 +360,7 @@ func addDataset(db *sql.DB) {
 
 }
 
-func addTestDataset(db *sql.DB, datasetName string) int64 {
+func addTestDataset(db *sql.DB, datasetName string) (int64, string) {
 	datasetNodeId := nodeId.NodeId(nodeId.DataSetCode)
 	datasetState := "READY"
 	datasetStatusId := 1
@@ -371,7 +371,7 @@ func addTestDataset(db *sql.DB, datasetName string) int64 {
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Unable to add dataset for test: %v", err))
 	}
-	return datasetId
+	return datasetId, datasetNodeId
 }
 
 // TestStore is the main Test Suite function for Packages.

@@ -94,6 +94,7 @@ func TestDatasets(t *testing.T) {
 		"Unspecified License is Null":      testUnspecifiedLicenseIsNull,
 		"Empty String License Is Null":     testEmptyStringLicenseIsNull,
 		"Update updatedAt timestamp":       testUpdatedAtChange,
+		"Get Organization Id for Dataset":  testGetOrganizationIdForDataset,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := orgId
@@ -105,11 +106,30 @@ func TestDatasets(t *testing.T) {
 
 func testGetDatasetById(t *testing.T, store *SQLStore, orgId int) {
 	name := "Test Dataset - GetDatasetById"
-	id := addTestDataset(store.db, name)
+	id, _ := addTestDataset(store.db, name)
 	ds, err := store.GetDatasetById(context.TODO(), id)
 	assert.NoError(t, err)
 	assert.Equal(t, name, ds.Name)
 	assert.Equal(t, id, ds.Id)
+}
+
+func testGetOrganizationIdForDataset(t *testing.T, store *SQLStore, orgId int) {
+	// addTestDataset generates a unique node id, so the AFTER-INSERT trigger populates a
+	// fresh pennsieve.dataset_organization row (avoids PK collisions across runs; TRUNCATE
+	// of datasets does not fire the row DELETE trigger).
+	_, dsNodeId := addTestDataset(store.db, "Test Dataset - GetOrganizationIdForDataset")
+	// Clean up the map row afterwards (TRUNCATE of datasets won't fire the delete trigger).
+	defer test.DeleteDatasetOrganization(t, store.db, dsNodeId)
+
+	// Known node id -> its owning org id (schema name == organization_id).
+	got, err := store.GetOrganizationIdForDataset(context.TODO(), dsNodeId)
+	require.NoError(t, err)
+	assert.Equal(t, int64(orgId), got)
+
+	// Unknown node id -> typed sentinel (miss/deny signal).
+	_, err = store.GetOrganizationIdForDataset(context.TODO(), "N:dataset:does-not-exist-00000000")
+	var notFound DatasetOrganizationNotFoundError
+	assert.ErrorAs(t, err, &notFound)
 }
 
 func testGetDatasetByName(t *testing.T, store *SQLStore, orgId int) {

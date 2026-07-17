@@ -28,7 +28,7 @@ func TestFiles(t *testing.T) {
 			defer test.Truncate(t, db, orgId, "packages")
 			defer test.Truncate(t, db, orgId, "datasets")
 
-			datasetId := addTestDataset(db, "TestFiles Dataset")
+			datasetId, _ := addTestDataset(db, "TestFiles Dataset")
 			packages, err := store.AddPackages(context.Background(),
 				test.GenerateTestPackages([]test.PackageParams{{Name: "test-package", ParentId: -1}}, int(datasetId)))
 			if err != nil {
