@@ -33,7 +33,13 @@ func (q *Queries) GetTokenByCognitoId(ctx context.Context, id string) (*pgdb.Tok
 }
 
 // GetUserByCognitoId returns a Pennsieve User based on the cognito id in the token pool.
-// Returns (nil, sql.ErrNoRows) if no user with the given token exists
+// Returns (nil, sql.ErrNoRows) if no user with the given token exists.
+//
+// NOTE: the returned User.PreferredOrg is populated from the *token's* organization_id (the
+// workspace the API token is bound to), NOT from the user's persisted preferred_org_id column.
+// This is intentional for API-key/token-pool auth — the token carries its own workspace — but
+// callers performing org/dataset-scoped authorization must not treat User.PreferredOrg here as
+// the user's active/preferred org.
 func (q *Queries) GetUserByCognitoId(ctx context.Context, id string) (*pgdb.User, error) {
 
 	queryStr := "SELECT pennsieve.users.id, pennsieve.users.node_id, email, first_name, last_name, is_super_admin, pennsieve.tokens.organization_id as preferred_org_id " +

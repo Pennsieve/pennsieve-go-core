@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageState"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/packageInfo/packageType"
@@ -258,5 +259,21 @@ func Truncate(t *testing.T, db *sql.DB, orgID int, table string) {
 	}
 
 	_, err := db.Exec(query)
+	assert.NoError(t, err)
+}
+
+// DeleteDatasetOrganization removes the given dataset node ids from the global
+// pennsieve.dataset_organization map. Use it to clean up map rows that a dataset
+// insert created via its AFTER-INSERT trigger: TRUNCATE of an org's datasets table
+// does not fire the row-level trigger that would otherwise delete these rows, and
+// truncating the map wholesale would also wipe the seed-provided entries. Deleting
+// by node id is targeted and order-independent (it does not depend on the dataset
+// still existing).
+func DeleteDatasetOrganization(t *testing.T, db *sql.DB, datasetNodeIds ...string) {
+	t.Helper()
+	if len(datasetNodeIds) == 0 {
+		return
+	}
+	_, err := db.Exec("DELETE FROM pennsieve.dataset_organization WHERE dataset_node_id = ANY($1)", pq.Array(datasetNodeIds))
 	assert.NoError(t, err)
 }

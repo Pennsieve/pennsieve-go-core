@@ -32,6 +32,14 @@ func (e DatasetUserNotFoundError) Error() string {
 	return fmt.Sprintf("dataset user was not found (error: %v)", e.ErrorMessage)
 }
 
+type DatasetOrganizationNotFoundError struct {
+	DatasetNodeId string
+}
+
+func (e DatasetOrganizationNotFoundError) Error() string {
+	return fmt.Sprintf("no organization mapping found for dataset node id: %s", e.DatasetNodeId)
+}
+
 type CreateDatasetParams struct {
 	Name                         string
 	Description                  string
@@ -156,12 +164,12 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 	}
 
 	// 1. Get Dataset Role and integer ID
-	datasetQuery := fmt.Sprintf("SELECT id, role FROM \"%d\".datasets WHERE node_id='%s';", organizationId, datasetNodeId)
+	datasetQuery := fmt.Sprintf("SELECT id, role FROM \"%d\".datasets WHERE node_id=$1;", organizationId)
 
 	var datasetId int64
 	var maybeDatasetRole sql.NullString
 
-	row := q.db.QueryRowContext(ctx, datasetQuery)
+	row := q.db.QueryRowContext(ctx, datasetQuery, datasetNodeId)
 	err := row.Scan(
 		&datasetId,
 		&maybeDatasetRole)
@@ -185,18 +193,18 @@ func (q *Queries) GetDatasetClaim(ctx context.Context, user *pgdb.User, datasetN
 	datasetTeam := fmt.Sprintf("\"%d\".dataset_team", organizationId)
 	teamQueryStr := fmt.Sprintf("SELECT %s FROM pennsieve.team_user JOIN %s "+
 		"ON pennsieve.team_user.team_id = %s.team_id "+
-		"WHERE user_id=%d AND dataset_id=%d", teamPermission, datasetTeam, datasetTeam, user.Id, datasetId)
+		"WHERE user_id=$1 AND dataset_id=$2", teamPermission, datasetTeam, datasetTeam)
 
 	// Get User Role
 	userPermission := fmt.Sprintf("\"%d\".dataset_user.role", organizationId)
 	datasetUser := fmt.Sprintf("\"%d\".dataset_user", organizationId)
-	userQueryStr := fmt.Sprintf("SELECT %s FROM %s WHERE user_id=%d AND dataset_id=%d",
-		userPermission, datasetUser, user.Id, datasetId)
+	userQueryStr := fmt.Sprintf("SELECT %s FROM %s WHERE user_id=$1 AND dataset_id=$2",
+		userPermission, datasetUser)
 
 	// Combine all queries in a single Union.
 	fullQuery := teamQueryStr + " UNION " + userQueryStr + ";"
 
-	rows, err := q.db.QueryContext(ctx, fullQuery)
+	rows, err := q.db.QueryContext(ctx, fullQuery, user.Id, datasetId)
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +268,27 @@ func (q *Queries) GetDatasetUser(ctx context.Context, dataset *pgdb.Dataset, use
 	}
 
 	return &datasetUser, nil
+}
+
+// GetOrganizationIdForDataset resolves the organization id that owns the given dataset
+// node id using the global pennsieve.dataset_organization map. Returns
+// DatasetOrganizationNotFoundError if the node id is not present in the map, so callers
+// can distinguish a genuine map miss (deny) from a DB/connection failure (retryable error).
+func (q *Queries) GetOrganizationIdForDataset(ctx context.Context, datasetNodeId string) (int64, error) {
+	query := "SELECT organization_id FROM pennsieve.dataset_organization WHERE dataset_node_id = $1"
+
+	var organizationId int64
+	err := q.db.QueryRowContext(ctx, query, datasetNodeId).Scan(&organizationId)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return 0, DatasetOrganizationNotFoundError{DatasetNodeId: datasetNodeId}
+		default:
+			return 0, fmt.Errorf("error resolving organization id for dataset node id %s: %w", datasetNodeId, err)
+		}
+	}
+
+	return organizationId, nil
 }
 
 func (q *Queries) AddDatasetUser(ctx context.Context, dataset *pgdb.Dataset, user *pgdb.User, role role.Role) (*pgdb.DatasetUser, error) {
