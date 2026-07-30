@@ -2,6 +2,7 @@ package pgdb
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/fileType"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/fileInfo/objectType"
@@ -22,6 +23,7 @@ func TestFiles(t *testing.T) {
 	){
 		"AddFiles duplicate uuid":                    testAddFilesDuplicateUUID,
 		"AddFiles duplicate uuid, differing S3 keys": testAddFilesDuplicateUUIDDifferentS3Key,
+		"AddFiles empty slice is a no-op":            testAddFilesEmptySlice,
 	} {
 
 		t.Run(scenario, func(t *testing.T) {
@@ -161,4 +163,91 @@ func testAddFilesDuplicateUUIDDifferentS3Key(t *testing.T, store *SQLStore, orgI
 		assert.Equal(t, fileUUID, actualUUID)
 		assert.Equal(t, actualInitialUpdatedAt, actualUpdatedAt)
 	}
+}
+
+// testAddFilesEmptySlice is the regression test for
+// `pq: syntax error at or near "ON"`.
+//
+// Before the guard in AddFiles, an empty batch produced
+// "INSERT INTO files(...) VALUES  ON CONFLICT ..." — an empty VALUES list — and
+// PrepareContext failed with that syntax error. It surfaced in production when a
+// warm Lambda's dedup map filtered a redelivered SQS batch down to zero files;
+// the error named the SQL rather than the empty input, which sent the
+// investigation in the wrong direction.
+func testAddFilesEmptySlice(t *testing.T, store *SQLStore, orgId int, packageId int) {
+	defer test.Truncate(t, store.db, orgId, "files")
+
+	for _, empty := range [][]pgdb.FileParams{nil, {}} {
+		actual, err := store.AddFiles(context.Background(), empty)
+		if assert.NoError(t, err, "empty batch must not error") {
+			assert.Empty(t, actual, "empty batch must insert nothing")
+		}
+	}
+}
+
+// TestBuildAddFilesQuery covers the generated SQL without needing a database.
+func TestBuildAddFilesQuery(t *testing.T) {
+	now := time.Date(2026, 7, 13, 2, 24, 31, 0, time.UTC)
+
+	newParams := func(checksum, sha string) pgdb.FileParams {
+		return pgdb.FileParams{
+			PackageId:  1,
+			Name:       "f.edf",
+			FileType:   fileType.EDF,
+			S3Bucket:   "b",
+			S3Key:      "k",
+			ObjectType: objectType.Source,
+			Size:       1,
+			CheckSum:   checksum,
+			Sha256:     sha,
+			UUID:       uuid.Must(uuid.NewUUID()),
+		}
+	}
+
+	t.Run("single row placeholders and ON CONFLICT spacing", func(t *testing.T) {
+		sql, values := buildAddFilesQuery([]pgdb.FileParams{newParams("", "")}, now)
+
+		assert.Contains(t, sql, "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT")
+		// The bug this guards: ")ON CONFLICT" parses, but only by luck.
+		assert.NotContains(t, sql, ")ON CONFLICT")
+		assert.Len(t, values, filesPerRowColumns)
+	})
+
+	t.Run("second row continues placeholder numbering", func(t *testing.T) {
+		sql, values := buildAddFilesQuery(
+			[]pgdb.FileParams{newParams("", ""), newParams("", "")}, now)
+
+		assert.Contains(t, sql, "($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13),"+
+			"($14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) ON CONFLICT")
+		assert.Len(t, values, 2*filesPerRowColumns)
+	})
+
+	// Pins the exact bytes of the checksum JSON for values needing no escaping,
+	// so this refactor cannot change what is already stored in the column.
+	t.Run("checksum JSON is byte-identical for safe values", func(t *testing.T) {
+		_, values := buildAddFilesQuery([]pgdb.FileParams{newParams("abc123", "ZGVmNDU2")}, now)
+
+		assert.Equal(t,
+			`{"checksum": "abc123", "chunkSize": "32", "sha256": "ZGVmNDU2"}`,
+			values[7],
+		)
+	})
+
+	t.Run("checksum JSON stays valid when values need escaping", func(t *testing.T) {
+		_, values := buildAddFilesQuery(
+			[]pgdb.FileParams{newParams(`he"llo`, `back\slash`)}, now)
+
+		etag, ok := values[7].(string)
+		if !assert.True(t, ok, "etag should be a string") {
+			return
+		}
+
+		var decoded map[string]string
+		if assert.NoError(t, json.Unmarshal([]byte(etag), &decoded),
+			"etag must be valid JSON even when values contain quotes or backslashes") {
+			assert.Equal(t, `he"llo`, decoded["checksum"])
+			assert.Equal(t, `back\slash`, decoded["sha256"])
+			assert.Equal(t, "32", decoded["chunkSize"])
+		}
+	})
 }
