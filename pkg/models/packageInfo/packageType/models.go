@@ -594,9 +594,9 @@ var FileTypeToInfoDict = map[fileType.Type]Info{
 		HasWorkflow:    false,
 	},
 	fileType.NeuroDataWithoutBorders: {
-		PackageType:    HDF5,
-		PackageSubType: "Data Container",
-		Icon:           iconInfo.NWB,
+		PackageType:    TimeSeries,
+		PackageSubType: "Timeseries",
+		Icon:           iconInfo.Timeseries,
 		HasWorkflow:    false,
 	},
 	fileType.Neuron: {
