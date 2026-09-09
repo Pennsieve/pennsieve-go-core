@@ -149,7 +149,7 @@ func (q *orgClaimQuery) paramsMsg(userId int64, orgIdentifier any) string {
 // to construct org claims.
 // The only difference is that *Queries.GetOrganizationClaim uses the org's int id as the organization identifier
 // (query parameter $2) and *Queries.GetOrganizationClaimByNodeId uses the org's node id instead.
-const orgClaimQueryFormat = `SELECT o.id, o.node_id, ou.permission_bit, f.feature, f.enabled, f.created_at, f.updated_at 
+const orgClaimQueryFormat = `SELECT o.id, o.node_id, o.encryption_key_id, ou.permission_bit, f.feature, f.enabled, f.created_at, f.updated_at
 			  		         FROM pennsieve.users u JOIN pennsieve.organization_user ou ON u.id = ou.user_id
          			             			        JOIN pennsieve.organizations o ON ou.organization_id = o.id
          			                           LEFT JOIN pennsieve.feature_flags f ON o.id = f.organization_id and f.enabled = true
@@ -187,6 +187,7 @@ func queryOrganizationClaim(ctx context.Context, db DBTX, orgClaimQuery *orgClai
 	// sure how else to handle this except with the redundant scans.
 	var orgId int64
 	var orgNodeId string
+	var orgEncryptionKeyId sql.NullString
 	var orgPerms pgdb.DbPermission
 	var flags []pgdb.FeatureFlags
 	for rows.Next() {
@@ -194,6 +195,7 @@ func queryOrganizationClaim(ctx context.Context, db DBTX, orgClaimQuery *orgClai
 		if err := rows.Scan(
 			&orgId,
 			&orgNodeId,
+			&orgEncryptionKeyId,
 			&orgPerms,
 			&nullableFlag.feature,
 			&nullableFlag.enabled,
@@ -219,6 +221,7 @@ func queryOrganizationClaim(ctx context.Context, db DBTX, orgClaimQuery *orgClai
 		Role:            orgPerms,
 		IntId:           orgId,
 		NodeId:          orgNodeId,
+		EncryptionKeyId: orgEncryptionKeyId.String,
 		EnabledFeatures: flags,
 	}, nil
 }

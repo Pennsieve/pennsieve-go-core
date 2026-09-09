@@ -89,6 +89,9 @@ func testGetOrganizationClaim(t *testing.T, store *SQLStore, orgId int) {
 	assert.Equal(t, organizationId, orgClaim.IntId)
 	assert.Equal(t, org1NodeId, orgClaim.NodeId)
 	assert.Equal(t, pgdb.Delete, orgClaim.Role)
+	// The org claim now carries the workspace's encryption_key_id. The seed org
+	// has a value (conventionally "NO_ENCRYPTION_KEY"); assert it's populated.
+	assert.NotEmpty(t, orgClaim.EncryptionKeyId)
 	// org 1 is the sandbox org created by migrations in the seed DB.
 	// It has one feature flag
 	assert.Len(t, orgClaim.EnabledFeatures, 1)
@@ -103,6 +106,7 @@ func testGetOrganizationClaim(t *testing.T, store *SQLStore, orgId int) {
 		assert.Equal(t, organizationId, orgClaim.IntId)
 		assert.Equal(t, org1NodeId, orgClaim.NodeId)
 		assert.Equal(t, pgdb.Delete, orgClaim.Role)
+		assert.NotEmpty(t, orgClaim.EncryptionKeyId)
 		// org 1 is the sandbox org created by migrations in the seed DB.
 		// It has one feature flag
 		assert.Len(t, orgClaim.EnabledFeatures, 1)
