@@ -11,6 +11,7 @@ type Claim struct {
 	Role            pgdb.DbPermission
 	IntId           int64
 	NodeId          string
+	EncryptionKeyId string
 	EnabledFeatures []pgdb.FeatureFlags
 }
 
