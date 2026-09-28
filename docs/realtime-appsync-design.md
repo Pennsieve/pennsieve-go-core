@@ -32,12 +32,18 @@ The Event API uses **`AWS_LAMBDA` for connect and subscribe** and **`AWS_IAM` fo
   | `EVENT_SUBSCRIBE` `/datasets/<datasetUuid>` | `DatasetAuthorizer(N:dataset:<uuid>)` gives the caller at least viewer |
   | `EVENT_SUBSCRIBE` `/orgs/<orgUuid>` | `WorkspaceAuthorizer(N:organization:<uuid>)`: the caller is a member |
   | `EVENT_SUBSCRIBE` `/users/<userUuid>` | The caller *is* that user |
-  | `EVENT_SUBSCRIBE` `/applications/<orgUuid>/<appUuid>` | The caller is a member of `<orgUuid>` |
+  | `EVENT_SUBSCRIBE` `/applications/<appUuid>` | app-deploy-service's `CanAccessApp` allows it (public, owner, or a grant to the user, one of their workspaces or one of their teams); see *Applications* below |
   | `EVENT_PUBLISH` (any) | Never. Publish is IAM-only, so the Lambda denies it if ever asked |
   | Any channel containing `*` | Deny. AppSync passes wildcard subscriptions through literally, and the rules are per resource |
 
 - **Caching:** `authorizer_result_ttl_in_seconds = 300`. Losing access therefore takes up to 5 minutes to stop *new* subscriptions. An existing subscription lives until the connection drops. Tokens expire within an hour, and clients re-subscribe on reconnect with a fresh token. Document this; don't try to revoke live subscriptions.
 - The client token goes in the WebSocket subprotocol header, **not** the URL, unlike the chat WebSocket's `?token=`. So it never lands in access logs.
+
+**Applications.** Some apps are available across workspaces. App access lives in app-deploy-service (`CanAccessApp`: `visibility == "public"`, the owner, or a grant in the app-access table for `user#`, `workspace#` or `team#`). The authorizer doesn't duplicate those rules. It invokes a small **check-app-access** Lambda that app-deploy-service owns, the same way the websocket authorizer already invokes account-service's check-access Lambda for compute nodes.
+
+- It passes the user's node ID and **all** of the user's workspace and team node IDs, resolved from Postgres, so a shared app is visible from whichever workspace the user is in.
+- The app-deploy Lambda returns `hasAccess`, and the authorizer caches it with the usual 300 s TTL.
+- This is the only cross-service call the events authorizer makes.
 
 ### 2. Channels and payloads
 
@@ -48,7 +54,7 @@ Namespaces are `datasets`, `orgs`, `users` and `applications`. Channels use bare
 | `dataset-<uuid>` | upload-service-v2 | `upload-event` | `/datasets/<uuid>` |
 | `organization-<uuid>-analytics` | workflow-service | `workflow-run-status`, `workflow-processor-status` | `/orgs/<uuid>` |
 | `user-<uuid>-analytics` | workflow-service (runs with no workspace) | same | `/users/<uuid>` |
-| `application-<uuid>` | app-deploy-service | `application_status_event` | `/applications/<orgUuid>/<appUuid>` (the app's `OrganizationId` is in its DynamoDB record) |
+| `application-<uuid>` | app-deploy-service | `application_status_event` | `/applications/<appUuid>` |
 
 Every event is one JSON envelope, so subscribers keep dispatching by name as they do with Pusher's `bind`:
 
@@ -69,7 +75,7 @@ type Channel struct{ Namespace string; Segments []string }
 func Dataset(datasetUuid string) Channel
 func Org(orgUuid string) Channel
 func User(userUuid string) Channel
-func Application(orgUuid, appUuid string) Channel
+func Application(appUuid string) Channel
 
 type Publisher interface {
     Publish(ctx context.Context, ch Channel, event string, data any) error
@@ -117,6 +123,5 @@ Clin first (Pusher is off there today), then dev, then prod. The `pusher` adapte
 
 ## Open items
 
-- **Penn SRE:** confirm the AppSync **Event API** is inside Penn's BAA scope and allowed in the landing zone, and whether WAF is required on it. This **blocks enabling it in clin** (subtask 7), not building it.
-- **App Store applications:** if public App Store apps can be followed by users outside the owning workspace, add a rule (e.g. `/applications/appstore/<appUuid>` readable by any signed-in user).
+- **Penn SRE** confirmed (2026-09-28) that the AppSync Event API is included in Penn's BAA. Still to confirm: whether WAF is required on the Event API in the landing zone.
 - **Run events for workspace members vs the run creator:** today's organisation channel broadcasts every run to the whole workspace. Keep that (parity), or narrow it to the creator later.
