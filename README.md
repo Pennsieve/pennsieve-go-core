@@ -1,6 +1,32 @@
 # pensieve-go-core
 Shared code for the Go services in Pennsieve
 
+## Realtime events (`pkg/realtime`)
+
+Live updates (upload rows, workflow run status, app builds) go through `pkg/realtime` (AppSync Events). The design is in [docs/realtime-appsync-design.md](docs/realtime-appsync-design.md).
+
+```go
+pub := realtime.FromEnv(ctx)
+
+err := pub.Publish(ctx, realtime.Run(run.OrganizationId, run.CreatedBy, run.Uuid),
+    "workflow-run-status", event)
+if err != nil {
+    log.Warn(err) // never fail the request over a live update
+}
+```
+
+- **Channels:**
+  - `realtime.Dataset(id)` → `/datasets/<uuid>`
+  - `realtime.Run(org, createdBy, run)` → `/runs/org-<uuid>/<run>`, or `/runs/user-<uuid>/<run>` without a workspace
+  - `realtime.Application(id)` → `/applications/<uuid>`
+  - `realtime.RunScope(org, createdBy)` → `/runs/<scope>/*`, for subscribers only
+
+  Node IDs (`N:dataset:…`) and bare UUIDs are both accepted.
+- **Configuration:** set `REALTIME_EVENTS_ENDPOINT` to the Event API's HTTP DNS name and grant `appsync:EventPublish`; the publisher signs with the Lambda's own credentials. Without the endpoint, live updates are off (`Noop`).
+
+  A broken configuration returns `Noop` with a warning. The service still starts and only loses live updates.
+- **Payloads:** subscribers receive `{"event": "<name>", "data": <payload>}`.
+
 ## Releasing a new version
 
 1. Merge updates into the main branch
