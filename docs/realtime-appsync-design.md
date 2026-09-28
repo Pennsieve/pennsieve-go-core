@@ -92,11 +92,10 @@ type Publisher interface {
 
 - **Implementations:**
   - `appsync`: SigV4-signed `POST https://<http-endpoint>/event` (service `appsync`), with the Lambda's own role (`appsync:EventPublish` on the API's namespaces).
-  - `pusher`: an adapter onto today's client, for dev and prod until they move. It maps channels back to the Pusher names above.
-  - `noop`: for "disabled".
-- **Selection** is by environment: `REALTIME_PROVIDER` = `appsync` | `pusher` | `noop`, plus `REALTIME_EVENTS_ENDPOINT`. This replaces clin's interim DNS-failing `/ops/pusher-config` with an explicit `noop`.
+  - `noop`: live updates off.
+- **Selection:** `REALTIME_EVENTS_ENDPOINT` set means `appsync`; unset means `noop`. There is no Pusher adapter: each environment cuts over (see Rollout). This replaces clin's interim disabled `/ops/pusher-config`.
 - **Failures:** publish failures return an error; callers keep today's behaviour of logging and continuing. Nobody's upload fails because an event didn't go out.
-- **`domain.PusherAPI` stays** until the last publisher has moved, then goes (subtask 8).
+- **`domain.PusherAPI` stays** for services that haven't moved yet, then goes (subtask 8).
 
 ### 4. Clients
 
@@ -126,7 +125,13 @@ From AWS's published quotas and pricing:
 
 ## Rollout
 
-Clin first (Pusher is off there today), then dev, then prod. The `pusher` adapter keeps dev and prod working until each switches. See subtasks 2–9 for the per-step plan.
+Clin first (Pusher is off there today), then dev, then prod. Each environment cuts over rather than running both:
+
+1. Event API (Terraform) and the events authorizer.
+2. Web app subscribing to AppSync.
+3. The three publishers (upload-service-v2, workflow-service, app-deploy-service) on `pkg/realtime`.
+
+Live updates are best-effort, so in dev and prod they are missing between steps 2 and 3; a page refresh still shows current state. If that gap is unacceptable for prod, the web app can listen to both Pusher and AppSync for one release. That temporary code stays in the frontend. See subtasks 2–9 for the per-step plan.
 
 ## Open items
 

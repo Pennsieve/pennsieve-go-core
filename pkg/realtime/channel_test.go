@@ -59,24 +59,3 @@ func TestSegmentFitsAppSyncLimit(t *testing.T) {
 	// "org-" + a UUID is the longest segment the scheme produces.
 	assert.LessOrEqual(t, len(Run(orgUUID, "", runUUID).Segments[0]), maxSegmentLength)
 }
-
-func TestPusherChannelNames(t *testing.T) {
-	cases := map[string]struct {
-		ch   Channel
-		want string
-	}{
-		"dataset":         {Dataset(dsUUID), "dataset-" + dsUUID},
-		"application":     {Application("abc-123"), "application-abc-123"},
-		"run in org":      {Run(orgUUID, userUUID, runUUID), "organization-" + orgUUID + "-analytics"},
-		"run without org": {Run("", userUUID, runUUID), "user-" + userUUID + "-analytics"},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, err := pusherChannel(c.ch)
-			assert.NoError(t, err)
-			assert.Equal(t, c.want, got)
-		})
-	}
-	_, err := pusherChannel(RunScope(orgUUID, ""))
-	assert.Error(t, err, "wildcards are for subscribers only")
-}

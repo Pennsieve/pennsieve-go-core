@@ -3,10 +3,10 @@ Shared code for the Go services in Pennsieve
 
 ## Realtime events (`pkg/realtime`)
 
-Live updates (upload rows, workflow run status, app builds) go through `pkg/realtime`, not Pusher directly. The design is in [docs/realtime-appsync-design.md](docs/realtime-appsync-design.md).
+Live updates (upload rows, workflow run status, app builds) go through `pkg/realtime` (AppSync Events). The design is in [docs/realtime-appsync-design.md](docs/realtime-appsync-design.md).
 
 ```go
-pub := realtime.FromEnv(ctx, realtime.WithPusher(buildPusherClient)) // WithPusher only if the service still supports Pusher
+pub := realtime.FromEnv(ctx)
 
 err := pub.Publish(ctx, realtime.Run(run.OrganizationId, run.CreatedBy, run.Uuid),
     "workflow-run-status", event)
@@ -22,13 +22,10 @@ if err != nil {
   - `realtime.RunScope(org, createdBy)` → `/runs/<scope>/*`, for subscribers only
 
   Node IDs (`N:dataset:…`) and bare UUIDs are both accepted.
-- **Configuration:** `REALTIME_PROVIDER` selects the publisher:
-  - `appsync`: the Event API. Needs `REALTIME_EVENTS_ENDPOINT` (its HTTP DNS name) and `appsync:EventPublish`; it signs with the Lambda's own credentials.
-  - `pusher`: today's Pusher channels, through the client passed with `WithPusher`.
-  - `noop`: the default.
+- **Configuration:** set `REALTIME_EVENTS_ENDPOINT` to the Event API's HTTP DNS name and grant `appsync:EventPublish`; the publisher signs with the Lambda's own credentials. Without the endpoint, live updates are off (`Noop`).
 
-  A missing or broken configuration returns `noop` with a warning. The service still starts and only loses live updates.
-- **Payloads:** subscribers on AppSync receive `{"event": "<name>", "data": <payload>}`. The Pusher adapter sends the payload as before.
+  A broken configuration returns `Noop` with a warning. The service still starts and only loses live updates.
+- **Payloads:** subscribers receive `{"event": "<name>", "data": <payload>}`.
 
 ## Releasing a new version
 

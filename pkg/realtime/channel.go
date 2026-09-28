@@ -120,29 +120,3 @@ func stripNodePrefix(id string) string {
 	}
 	return id
 }
-
-// pusherChannel maps a channel to the name today's Pusher clients subscribe
-// to, so the Pusher adapter keeps dev/prod working during the move.
-func pusherChannel(c Channel) (string, error) {
-	if err := c.Validate(); err != nil {
-		return "", err
-	}
-	if c.IsWildcard() {
-		return "", fmt.Errorf("realtime: cannot publish to wildcard channel %s", c.Path())
-	}
-	switch c.Namespace {
-	case NamespaceDatasets:
-		return "dataset-" + c.Segments[0], nil
-	case NamespaceApplications:
-		return "application-" + c.Segments[0], nil
-	case NamespaceRuns:
-		scope := c.Segments[0]
-		switch {
-		case strings.HasPrefix(scope, "org-"):
-			return "organization-" + strings.TrimPrefix(scope, "org-") + "-analytics", nil
-		case strings.HasPrefix(scope, "user-"):
-			return "user-" + strings.TrimPrefix(scope, "user-") + "-analytics", nil
-		}
-	}
-	return "", fmt.Errorf("realtime: no Pusher mapping for %s", c.Path())
-}
