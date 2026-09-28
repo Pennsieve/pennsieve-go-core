@@ -30,11 +30,11 @@ The Event API uses **`AWS_LAMBDA` for connect and subscribe** and **`AWS_IAM` fo
   |---|---|
   | `EVENT_CONNECT` | The token is a valid Pennsieve JWT for this environment |
   | `EVENT_SUBSCRIBE` `/datasets/<datasetUuid>` | `DatasetAuthorizer(N:dataset:<uuid>)` gives the caller at least viewer |
-  | `EVENT_SUBSCRIBE` `/orgs/<orgUuid>` | `WorkspaceAuthorizer(N:organization:<uuid>)`: the caller is a member |
-  | `EVENT_SUBSCRIBE` `/users/<userUuid>` | The caller *is* that user |
+  | `EVENT_SUBSCRIBE` `/runs/org-<orgUuid>/<runUuid>` or `/runs/org-<orgUuid>/*` | `WorkspaceAuthorizer(N:organization:<orgUuid>)`: the caller is a member |
+  | `EVENT_SUBSCRIBE` `/runs/user-<userUuid>/<runUuid>` or `/runs/user-<userUuid>/*` | The caller *is* that user (runs with no workspace) |
   | `EVENT_SUBSCRIBE` `/applications/<appUuid>` | app-deploy-service's `CanAccessApp` allows it (public, owner, or a grant to the user, one of their workspaces or one of their teams); see *Applications* below |
   | `EVENT_PUBLISH` (any) | Never. Publish is IAM-only, so the Lambda denies it if ever asked |
-  | Any channel containing `*` | Deny. AppSync passes wildcard subscriptions through literally, and the rules are per resource |
+  | Any other channel containing `*` | Deny. AppSync passes wildcard subscriptions through literally. The only wildcard allowed is a whole run scope, `/runs/<scope>/*`, which the scope rule above covers |
 
 - **Caching:** `authorizer_result_ttl_in_seconds = 300`. Losing access therefore takes up to 5 minutes to stop *new* subscriptions. An existing subscription lives until the connection drops. Tokens expire within an hour, and clients re-subscribe on reconnect with a fresh token. Document this; don't try to revoke live subscriptions.
 - The client token goes in the WebSocket subprotocol header, **not** the URL, unlike the chat WebSocket's `?token=`. So it never lands in access logs.
@@ -45,15 +45,22 @@ The Event API uses **`AWS_LAMBDA` for connect and subscribe** and **`AWS_IAM` fo
 - The app-deploy Lambda returns `hasAccess`, and the authorizer caches it with the usual 300 s TTL.
 - This is the only cross-service call the events authorizer makes.
 
+**Runs.** Run status comes from each compute node's `workflow-status-updater`, which calls workflow-service's `PUT …/runs/{id}/status` and processor-status endpoints with the run's callback token. workflow-service updates DynamoDB and then publishes. Today that publish goes to one channel per workspace, and every run page filters for its run. Instead:
+
+- **Publish once, per run.** workflow-service publishes to `/runs/org-<orgUuid>/<runUuid>`, or `/runs/user-<createdByUuid>/<runUuid>` when there's no workspace. It already has `run.OrganizationId` and `run.CreatedBy` in the status handlers.
+- **Subscribe narrowly or widely.** A run detail page, RunMonitor or the agent watching a run subscribes to that one run. The runs and notebooks overviews subscribe to `/runs/org-<orgUuid>/*` and get every run in the workspace.
+- **No cross-service call.** The workspace or user is in the path, so the authorizer checks membership (or identity) without asking workflow-service about the run.
+- **Payloads are unchanged:** `workflow-run-status` `{runId, organizationId, status, timestamp}` and `workflow-processor-status` (plus `nodeId`). IDs and status only.
+
 ### 2. Channels and payloads
 
-Namespaces are `datasets`, `orgs`, `users` and `applications`. Channels use bare UUIDs; a segment is at most 50 characters and a channel at most 5 segments.
+Namespaces are `datasets`, `runs` and `applications`. Channels use bare UUIDs, plus an `org-`/`user-` prefix on a run's scope segment. A segment is at most 50 characters (`org-` + a UUID is 40) and a channel at most 5 segments.
 
 | Today (Pusher) | Publisher | Events | AppSync channel |
 |---|---|---|---|
 | `dataset-<uuid>` | upload-service-v2 | `upload-event` | `/datasets/<uuid>` |
-| `organization-<uuid>-analytics` | workflow-service | `workflow-run-status`, `workflow-processor-status` | `/orgs/<uuid>` |
-| `user-<uuid>-analytics` | workflow-service (runs with no workspace) | same | `/users/<uuid>` |
+| `organization-<uuid>-analytics` | workflow-service | `workflow-run-status`, `workflow-processor-status` | `/runs/org-<orgUuid>/<runUuid>` |
+| `user-<uuid>-analytics` | workflow-service (runs with no workspace) | same | `/runs/user-<userUuid>/<runUuid>` |
 | `application-<uuid>` | app-deploy-service | `application_status_event` | `/applications/<appUuid>` |
 
 Every event is one JSON envelope, so subscribers keep dispatching by name as they do with Pusher's `bind`:
@@ -73,8 +80,8 @@ A small package replaces direct Pusher use:
 type Channel struct{ Namespace string; Segments []string }
 
 func Dataset(datasetUuid string) Channel
-func Org(orgUuid string) Channel
-func User(userUuid string) Channel
+func Run(orgUuid, createdByUuid, runUuid string) Channel // org scope when orgUuid is set, else user scope
+func RunScope(orgUuid, createdByUuid string) Channel      // the /runs/<scope>/* wildcard, for subscribers
 func Application(appUuid string) Channel
 
 type Publisher interface {
@@ -93,8 +100,8 @@ type Publisher interface {
 
 ### 4. Clients
 
-- **Web app:** one `realtime` module (subscribe, unsubscribe, reconnect, re-subscribe, dispatch by `event`) over the Amplify Events client in Lambda-auth mode with the user's access token. The Amplify library is already used for Cognito. It replaces the ~10 `pusher.subscribe` sites and the global `$pusher`. The site config gets a `realtime` block, and each environment's CSP gets the Event API's HTTP and realtime hosts.
-- **Agent:** a Go client for the Event API WebSocket protocol: subprotocol `aws-appsync-event-ws` plus the base64url auth header, `connection_init`, `subscribe`, `ka`, reconnect with backoff and re-subscribe. It uses the agent's token-pool access token. The endpoint comes from the profile, like `api_host`/`api2_host`.
+- **Web app:** one `realtime` module (subscribe, unsubscribe, reconnect, re-subscribe, dispatch by `event`) over the Amplify Events client in Lambda-auth mode with the user's access token. The Amplify library is already used for Cognito. It replaces the ~10 `pusher.subscribe` sites and the global `$pusher`. Run pages move from the workspace channel to `runs`: overviews use `/runs/org-<orgUuid>/*`, and detail pages use the single run. The site config gets a `realtime` block, and each environment's CSP gets the Event API's HTTP and realtime hosts.
+- **Agent:** a Go client for the Event API WebSocket protocol: subprotocol `aws-appsync-event-ws` plus the base64url auth header, `connection_init`, `subscribe`, `ka`, reconnect with backoff and re-subscribe. It uses the agent's token-pool access token. To follow a run it started, it subscribes to that run's channel. The endpoint comes from the profile, like `api_host`/`api2_host`.
 
 ## Limits and cost
 
@@ -124,4 +131,4 @@ Clin first (Pusher is off there today), then dev, then prod. The `pusher` adapte
 ## Open items
 
 - **Penn SRE** confirmed (2026-09-28) that the AppSync Event API is included in Penn's BAA. Still to confirm: whether WAF is required on the Event API in the landing zone.
-- **Run events for workspace members vs the run creator:** today's organisation channel broadcasts every run to the whole workspace. Keep that (parity), or narrow it to the creator later.
+- **Run events for workspace members vs the run creator:** an org-scoped run is visible to every member of its workspace, as today. Narrowing it to the creator later only changes the authorizer rule, not the channels.
