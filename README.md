@@ -44,4 +44,4 @@ if err != nil {
 
    eg. ```git push origin v0.0.1```
 
-This will trigger Github Actions to create a new release with the same name.
+4. Manually create a GitHub release.
