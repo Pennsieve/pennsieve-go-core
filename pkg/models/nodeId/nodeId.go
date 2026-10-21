@@ -16,7 +16,7 @@ const (
 	CollectionCode
 	DataSetCode
 	ChannelCode
-	DataCanvasCode
+	_ // was DataCanvasCode; kept so FolderCode keeps its value
 	FolderCode
 )
 
@@ -29,7 +29,6 @@ var NodeCodeMap = map[NodeType]string{
 	CollectionCode:   "collection",
 	DataSetCode:      "dataset",
 	ChannelCode:      "channel",
-	DataCanvasCode:   "canvas",
 	FolderCode:       "folder",
 }
 
