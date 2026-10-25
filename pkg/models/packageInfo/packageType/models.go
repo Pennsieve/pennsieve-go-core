@@ -563,10 +563,18 @@ var FileTypeToInfoDict = map[fileType.Type]Info{
 		Icon:           iconInfo.Microscope,
 		HasWorkflow:    false,
 	},
-	fileType.MATLAB: {
+	// As pennsieve-api's FileTypeInfo: a .mat data file is an HDF5 data
+	// container; a .m script is unsupported code.
+	fileType.MAT: {
 		PackageType:    HDF5,
 		PackageSubType: "Data Container",
 		Icon:           iconInfo.Matlab,
+		HasWorkflow:    false,
+	},
+	fileType.MATLAB: {
+		PackageType:    Unsupported,
+		PackageSubType: "Matlab",
+		Icon:           iconInfo.Code,
 		HasWorkflow:    false,
 	},
 	fileType.MatlabFigure: {
