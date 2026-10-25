@@ -103,6 +103,9 @@ const (
 	VariantData
 	YAML
 	ZIP
+	// MAT is a MATLAB data file (.mat, .mex); MATLAB is a script (.m), as in
+	// pennsieve-api's FileType. Appended so existing values don't shift.
+	MAT
 )
 
 // String returns the string representation of the File.Type
@@ -306,6 +309,8 @@ func (s Type) String() string {
 		return "YAML"
 	case ZIP:
 		return "ZIP"
+	case MAT:
+		return "MAT"
 	}
 	return "GenericData"
 }
@@ -411,6 +416,7 @@ var Dict = map[string]Type{
 	"VariantData":             VariantData,
 	"YAML":                    YAML,
 	"ZIP":                     ZIP,
+	"MAT":                     MAT,
 }
 
 // ExtensionToTypeDict maps file extensions to FileType object.
@@ -456,8 +462,8 @@ var ExtensionToTypeDict = map[string]Type{
 	"tsv":           TSV,
 	"ppt":           PowerPoint,
 	"pptx":          PowerPoint,
-	"mat":           MATLAB,
-	"mex":           MATLAB,
+	"mat":           MAT,
+	"mex":           MAT,
 	"m":             MATLAB,
 	"fig":           MatlabFigure,
 	"mef":           MEF,
