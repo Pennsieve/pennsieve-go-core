@@ -23,3 +23,14 @@ func TestMATRoundTrip(t *testing.T) {
 		t.Fatalf("MAT (%d) must come after ZIP (%d)", MAT, ZIP)
 	}
 }
+
+func TestZarrRoundTrip(t *testing.T) {
+	for _, ft := range []Type{OMEZarr, TSZarr} {
+		if got := Dict[ft.String()]; got != ft {
+			t.Errorf("%s: Dict[String()] = %v", ft.String(), got)
+		}
+	}
+	if OMEZarr.String() != "OMEZarr" || TSZarr.String() != "TSZarr" {
+		t.Errorf("names: %s %s", OMEZarr.String(), TSZarr.String())
+	}
+}
