@@ -1,0 +1,76 @@
+cff-version: 1.2.0
+message: "If you use this workflow, please cite it as below."
+type: software
+title: "Immune cytometry: batch-corrected clustering"
+version: 1.4.0
+doi: https://doi.org/10.5281/ZENODO.1234567
+date-released: 2026-10-01
+license: Apache-2.0
+abstract: >-
+  Prepares, normalises and clusters high-dimensional flow cytometry data
+  across batches.
+keywords:
+  - cytometry
+  - FlowSOM
+  - CytoNorm
+repository-code: "https://github.com/pennsieve/workflow-immune-cytometry"
+url: "https://app.pennsieve.io"
+authors:
+  - given-names: Joost
+    family-names: Wagenaar
+    orcid: "https://orcid.org/0000-0002-1825-0097"
+    affiliation: University of Pennsylvania
+  - given-names: Sofie
+    name-particle: Van
+    family-names: Gassen
+  - name: "Pennsieve Team"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.1234567
+    description: The concept DOI
+  - type: url
+    value: https://github.com/pennsieve/workflow-immune-cytometry
+preferred-citation:
+  type: article
+  title: "Deep immune profiling of COVID-19 patients reveals distinct immunotypes with therapeutic implications"
+  authors:
+    - family-names: Mathew
+      given-names: Divij
+    - family-names: Giles
+      given-names: Josephine R.
+  journal: Science
+  year: 2020
+  doi: 10.1126/science.abc8511
+references:
+  - type: article
+    title: "FlowSOM: Using self-organizing maps for visualization and interpretation of cytometry data"
+    authors:
+      - family-names: Van Gassen
+        given-names: Sofie
+    journal: Cytometry A
+    year: "2015"
+    doi: "doi:10.1002/CYTO.A.22625"
+  - type: article
+    title: "CytoNorm: A Normalization Algorithm for Cytometry Data"
+    authors:
+      - family-names: Van Gassen
+        given-names: Sofie
+    journal: Cytometry A
+    year: 2020
+    identifiers:
+      - type: doi
+        value: https://doi.org/10.1002/cyto.a.23904
+  - type: dataset
+    title: "Spectral flow cytometry of stimulated PBMCs across 18 batches"
+    authors:
+      - name: "Zenodo contributors"
+    date-published: 2025-05-12
+    doi: 10.5281/zenodo.15388817
+    url: https://doi.org/10.5281/zenodo.15388817
+  - type: software
+    title: "FlowKit"
+    url: https://github.com/whitews/FlowKit
+  - type: article
+    title: "FlowSOM (repeat)"
+    doi: https://dx.doi.org/10.1002/cyto.a.22625
+    url: https://onlinelibrary.wiley.com/doi/10.1002/cyto.a.22625
