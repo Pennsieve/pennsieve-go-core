@@ -32,6 +32,7 @@ func TestPackageTable(t *testing.T) {
 		"Test PrepareReplace":            testPrepareReplace,
 		"Test PrepareReplace empty":      testPrepareReplaceEmpty,
 		"Test PrepareReplace validation": testPrepareReplaceValidation,
+		"Test PrepareReplace twice":      testPrepareReplaceAlreadyDeleting,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			orgId := 1
@@ -799,4 +800,44 @@ func testPrepareReplaceValidation(t *testing.T, store *SQLStore, _ int) {
 	// quietly report success.
 	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{{Id: 999999, NodeId: "N:package:missing", Name: "ghost.csv"}}),
 		"unknown id must error")
+}
+
+// testPrepareReplaceAlreadyDeleting: a second PrepareReplace on a predecessor
+// that is already DELETING must fail and leave the row alone, whether the
+// caller still holds the original name or has re-read the prefixed one.
+// Without the state guard it reported success, and the re-read case
+// double-prefixed the name.
+func testPrepareReplaceAlreadyDeleting(t *testing.T, store *SQLStore, orgId int) {
+	defer test.Truncate(t, store.db, orgId, "packages")
+	ctx := context.Background()
+
+	seed := test.GenerateTestPackages([]test.PackageParams{
+		{Name: "report.csv", ParentId: -1},
+	}, 1)
+	inserted, err := store.AddPackagesWithConflict(ctx, seed, conflictStrategy.KeepBoth)
+	assert.NoError(t, err)
+	assert.Len(t, inserted, 1)
+	stale := inserted[0]
+
+	assert.NoError(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{&stale}))
+
+	selectStmt := fmt.Sprintf("SELECT name, state FROM \"%d\".packages WHERE id=$1", orgId)
+	var firstName, state string
+	assert.NoError(t, store.db.QueryRow(selectStmt, stale.Id).Scan(&firstName, &state))
+	assert.Equal(t, fmt.Sprintf("__DELETED__%s_report.csv", stale.NodeId), firstName)
+
+	// Caller still holds the original name.
+	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{&stale}),
+		"already-DELETING predecessor (stale struct) should be rejected")
+
+	// Caller re-read the row, so Name already carries the prefix.
+	fresh := stale
+	fresh.Name = firstName
+	assert.Error(t, store.Queries.PrepareReplace(ctx, []*pgdb.Package{&fresh}),
+		"already-DELETING predecessor (re-read struct) should be rejected")
+
+	var gotName string
+	assert.NoError(t, store.db.QueryRow(selectStmt, stale.Id).Scan(&gotName, &state))
+	assert.Equal(t, firstName, gotName, "name must not change on a repeat call")
+	assert.Equal(t, packageState.Deleting.String(), state)
 }

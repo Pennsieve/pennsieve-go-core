@@ -256,9 +256,14 @@ func (q *Queries) PrepareReplace(ctx context.Context, predecessors []*pgdb.Packa
 		// Same rename pattern addPackagesReplace uses, so both entry
 		// points produce identical __DELETED__ rows.
 		newName := fmt.Sprintf("__DELETED__%s_%s", p.NodeId, p.Name)
+		// Guarded on state so a duplicate or concurrent replace of the same
+		// predecessor cannot rename it twice (the new name is built from the
+		// caller's copy of Name, which would already carry the prefix if the
+		// caller re-read the row). Mirrors the state guard in pennsieve-api's
+		// PackageManager.delete.
 		result, err := q.db.ExecContext(ctx,
-			"UPDATE packages SET state=$1, name=$2 WHERE id=$3",
-			packageState.Deleting.String(), newName, p.Id)
+			"UPDATE packages SET state=$1, name=$2 WHERE id=$3 AND state NOT IN ($1, $4)",
+			packageState.Deleting.String(), newName, p.Id, packageState.Deleted.String())
 		if err != nil {
 			return fmt.Errorf("PrepareReplace: renaming predecessor %d: %w", p.Id, err)
 		}
@@ -271,7 +276,7 @@ func (q *Queries) PrepareReplace(ctx context.Context, predecessors []*pgdb.Packa
 			return fmt.Errorf("PrepareReplace: checking rows affected for %d: %w", p.Id, err)
 		}
 		if n == 0 {
-			return fmt.Errorf("PrepareReplace: predecessor %d not found (or already deleting)", p.Id)
+			return fmt.Errorf("PrepareReplace: predecessor %d not found, or already DELETING/DELETED", p.Id)
 		}
 	}
 	return nil
