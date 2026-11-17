@@ -16,7 +16,6 @@ func TestPackageStorage(t *testing.T) {
 
 	orgId := 1
 	store := NewSQLStore(testDB[orgId])
-	packageId := int64(1)
 
 	defer func() {
 		test.Truncate(t, store.db, orgId, "packages")
@@ -55,8 +54,14 @@ func TestPackageStorage(t *testing.T) {
 			Attributes:   attr,
 		},
 	}
-	_, err := store.AddPackages(context.Background(), records)
+	inserted, err := store.AddPackages(context.Background(), records)
 	assert.NoError(t, err)
+	if !assert.Len(t, inserted, 1) {
+		return
+	}
+	// Use the id the database assigned: it depends on how many packages earlier
+	// tests created, so it cannot be hard-coded.
+	packageId := inserted[0].Id
 
 	// Adding 10
 	err = store.IncrementPackageStorage(context.Background(), packageId, 10)

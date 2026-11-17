@@ -31,6 +31,13 @@ type DeleteRequest struct {
 	OrganizationID int64  `json:"organizationId"`
 	UserNodeID     string `json:"userId"`
 	TraceID        string `json:"traceId"`
+
+	// JobID is the delete_jobs row id for this delete, as returned by
+	// pgdb.Queries.CreateDeleteJobs. It becomes the message's "id". Optional:
+	// when empty DeletePackages mints one, which is what producers that do not
+	// yet write a delete_jobs row get. It is not part of the wire shape beyond
+	// "id".
+	JobID string `json:"-"`
 }
 
 // DeletePackages builds and validates requests, then sends them to the QueueSender.
@@ -50,11 +57,15 @@ func DeletePackages(ctx context.Context, sender QueueSender, reqs []DeleteReques
 			errs = append(errs, fmt.Errorf("request %d: %w", i, err))
 			continue
 		}
+		jobID := r.JobID
+		if jobID == "" {
+			jobID = uuid.NewString()
+		}
 		body, err := json.Marshal(map[string]any{
 			"DeletePackageJob": struct {
 				DeleteRequest
 				Id string `json:"id"`
-			}{r, uuid.NewString()},
+			}{r, jobID},
 		})
 		if err != nil {
 			errs = append(errs, fmt.Errorf("request %d: marshal: %w", i, err))
@@ -86,6 +97,11 @@ func validate(r DeleteRequest) error {
 	}
 	if r.TraceID == "" {
 		return errors.New("TraceID is required")
+	}
+	if r.JobID != "" {
+		if _, err := uuid.Parse(r.JobID); err != nil {
+			return fmt.Errorf("JobID must be a UUID: %w", err)
+		}
 	}
 	return nil
 }

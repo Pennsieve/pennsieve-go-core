@@ -226,3 +226,39 @@ func TestDeletePackages_GoldenEnvelope(t *testing.T) {
 	}
 	assert.Equal(t, want, got)
 }
+
+// TestDeletePackages_JobID: a caller that recorded a delete_jobs row passes the
+// row's id and it becomes the message id, so consumer and row agree. Without
+// one, DeletePackages mints an id as before.
+func TestDeletePackages_JobID(t *testing.T) {
+	sender := newFakeQueueSender()
+	withID := validRequest()
+	withID.JobID = "0b7bd1a6-5e0e-4e6c-9d0a-3b1e1a8c9f10"
+	withoutID := validRequest()
+
+	require.NoError(t, DeletePackages(context.Background(), sender, []DeleteRequest{withID, withoutID}))
+	require.Len(t, sender.bodies, 2)
+
+	var first, second map[string]wireMessage
+	require.NoError(t, json.Unmarshal(sender.bodies[0], &first))
+	require.NoError(t, json.Unmarshal(sender.bodies[1], &second))
+	assert.Equal(t, withID.JobID, first["DeletePackageJob"].Id, "caller's job id is the message id")
+	_, err := uuid.Parse(second["DeletePackageJob"].Id)
+	assert.NoError(t, err, "no JobID: a UUID is minted")
+	assert.NotEqual(t, withID.JobID, second["DeletePackageJob"].Id)
+
+	// JobID is not a separate wire field.
+	assert.NotContains(t, string(sender.bodies[0]), "JobID")
+	assert.NotContains(t, string(sender.bodies[0]), "jobId")
+}
+
+func TestDeletePackages_RejectsInvalidJobID(t *testing.T) {
+	sender := newFakeQueueSender()
+	bad := validRequest()
+	bad.JobID = "not-a-uuid"
+
+	err := DeletePackages(context.Background(), sender, []DeleteRequest{bad})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "JobID must be a UUID")
+	assert.Equal(t, 0, sender.calls, "nothing is sent for an invalid request")
+}
