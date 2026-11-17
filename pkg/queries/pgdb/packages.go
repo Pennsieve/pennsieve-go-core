@@ -236,9 +236,10 @@ func (q *Queries) addPackagesReplace(ctx context.Context, parentId int64, record
 //
 // Run this inside the same transaction as those inserts and updates
 // (use Queries.WithTx). The full replace looks like:
-// PrepareReplace → insert new → set back-reference → commit. Then call
-// packagedelete.DeletePackages to hand off storage/S3/restore-record
-// cleanup to process-jobs-service.
+// PrepareReplace → insert new → set back-reference →
+// packagedelete.RecordPendingJobs (writes the PENDING delete_jobs rows)
+// → commit. Then call packagedelete.EnqueueJobs to hand off
+// storage/S3/restore-record cleanup to process-jobs-service.
 //
 // Each predecessor needs Id, NodeId, and Name set;
 // findConflictingPackages already returns those.
