@@ -571,6 +571,20 @@ var FileTypeToInfoDict = map[fileType.Type]Info{
 		Icon:           iconInfo.Matlab,
 		HasWorkflow:    false,
 	},
+	// Zipped Zarr stores, as pennsieve-api's FileTypeInfo: an OME-Zarr image
+	// like OME-TIFF; a TS-Zarr bundle a timeseries.
+	fileType.OMEZarr: {
+		PackageType:    Slide,
+		PackageSubType: "Image",
+		Icon:           iconInfo.Microscope,
+		HasWorkflow:    false,
+	},
+	fileType.TSZarr: {
+		PackageType:    TimeSeries,
+		PackageSubType: "Timeseries",
+		Icon:           iconInfo.Timeseries,
+		HasWorkflow:    false,
+	},
 	fileType.MATLAB: {
 		PackageType:    Unsupported,
 		PackageSubType: "Matlab",

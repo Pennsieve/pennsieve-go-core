@@ -106,6 +106,11 @@ const (
 	// MAT is a MATLAB data file (.mat, .mex); MATLAB is a script (.m), as in
 	// pennsieve-api's FileType. Appended so existing values don't shift.
 	MAT
+	// OMEZarr is an OME-NGFF (OME-Zarr) image in its single-file zip form
+	// (.ozx, .ome.zarr.zip); TSZarr is a TS-Zarr timeseries bundle zipped
+	// (.ts.zarr.zip). A Zarr store is a directory, and a package is one file.
+	OMEZarr
+	TSZarr
 )
 
 // String returns the string representation of the File.Type
@@ -311,6 +316,10 @@ func (s Type) String() string {
 		return "ZIP"
 	case MAT:
 		return "MAT"
+	case OMEZarr:
+		return "OMEZarr"
+	case TSZarr:
+		return "TSZarr"
 	}
 	return "GenericData"
 }
@@ -417,6 +426,8 @@ var Dict = map[string]Type{
 	"YAML":                    YAML,
 	"ZIP":                     ZIP,
 	"MAT":                     MAT,
+	"OMEZarr":                 OMEZarr,
+	"TSZarr":                  TSZarr,
 }
 
 // ExtensionToTypeDict maps file extensions to FileType object.
@@ -463,6 +474,9 @@ var ExtensionToTypeDict = map[string]Type{
 	"ppt":           PowerPoint,
 	"pptx":          PowerPoint,
 	"mat":           MAT,
+	"ome.zarr.zip":  OMEZarr,
+	"ozx":           OMEZarr,
+	"ts.zarr.zip":   TSZarr,
 	"mex":           MAT,
 	"m":             MATLAB,
 	"fig":           MatlabFigure,

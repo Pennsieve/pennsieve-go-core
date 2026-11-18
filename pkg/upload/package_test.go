@@ -111,6 +111,12 @@ func TestPackageTypeResolverExtensions(t *testing.T) {
 		{"longest match tar.gz beats gz", "archive.tar.gz", "ZIP"},
 		{"bare gz still resolves", "data.gz", "ZIP"},
 
+		// Zipped Zarr stores beat a bare zip
+		{"ome.zarr.zip beats zip", "slide.ome.zarr.zip", "OMEZarr"},
+		{"ozx", "slide.ozx", "OMEZarr"},
+		{"ts.zarr.zip beats zip", "recording.ts.zarr.zip", "TSZarr"},
+		{"bare zip still resolves", "files.zip", "ZIP"},
+
 		// Leading-dot dict key (".eeg") still matches via normalization
 		{"leading-dot dict key eeg", "recording.eeg", "NihonKoden"},
 
